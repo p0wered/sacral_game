@@ -6,6 +6,7 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Animation;
+import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.Texture;
@@ -13,6 +14,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.maps.MapLayer;
 import com.badlogic.gdx.maps.MapObject;
 import com.badlogic.gdx.maps.MapObjects;
+import com.badlogic.gdx.maps.objects.RectangleMapObject;
 import com.badlogic.gdx.maps.tiled.TiledMapTile;
 import com.badlogic.gdx.maps.tiled.objects.TiledMapTileMapObject;
 import com.badlogic.gdx.math.Intersector;
@@ -23,12 +25,19 @@ import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.scenes.scene2d.ui.List;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.Viewport;
+
+import java.util.ArrayList;
+import java.util.Collections;
 
 public class GameScreen implements Screen {
     private OrthographicCamera camera;
+    private Viewport viewport;
     private SpriteBatch batch;
     private Vector2 position;
-    private float speed = 200;
+    private float speed = 170;
     private float tileSize;
 
     private Texture spritesheet;
@@ -50,14 +59,34 @@ public class GameScreen implements Screen {
     private int tileWidth;
     private int tileHeight;
 
+    private class DrawableObject implements Comparable<DrawableObject> {
+        Sprite sprite;
+        float y;
+        boolean flipX;
+
+        DrawableObject(Sprite sprite, float y, boolean flipX) {
+            this.sprite = sprite;
+            this.y = y;
+            this.flipX = flipX;
+        }
+
+        @Override
+        public int compareTo(DrawableObject other) {
+            return Float.compare(other.y, this.y);
+        }
+    }
+
+    private static final float VIEWPORT_WIDTH = 640; // Половина от текущей ширины
+    private static final float VIEWPORT_HEIGHT = 360; // Половина от текущей высоты
+
     public GameScreen() {
         camera = new OrthographicCamera();
-        camera.setToOrtho(false, 1280, 720);
+        viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
         batch = new SpriteBatch();
-        position = new Vector2(640, 360);
+        position = new Vector2(VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2);
         shapeRenderer = new ShapeRenderer();
         playerCollisionRect = new Rectangle();
-        loadMap(); // Загружаем карту перед анимациями, чтобы получить размер тайла
+        loadMap();
         loadAnimations();
         updatePlayerCollisionRect();
     }
@@ -65,10 +94,10 @@ public class GameScreen implements Screen {
     private void updatePlayerCollisionRect() {
         TextureRegion frame = getCurrentFrame();
         float width = frame.getRegionWidth() * scale * 0.3f;  // Уменьшаем ширину
-        float height = frame.getRegionHeight() * scale * 0.45f;  // Уменьшаем высоту, но не так сильно как ширину
+        float height = frame.getRegionHeight() * scale * 0.15f;  // Уменьшаем высоту, но не так сильно как ширину
         playerCollisionRect.set(
             position.x - width / 2,
-            position.y - height / 4,  // Смещаем прямоугольник вниз
+            position.y - height,  // Смещаем прямоугольник вниз
             width,
             height
         );
@@ -98,7 +127,7 @@ public class GameScreen implements Screen {
 
         // Настройка масштаба относительно тайла
         TextureRegion frame = idleAnimation.getKeyFrame(0);
-        float desiredHeight = tileHeight * 2f; // Уменьшаем высоту персонажа до 1.5 тайла
+        float desiredHeight = tileHeight * 2f; // Уменьшаем высоту персонажа до 2 тайлов
         scale = desiredHeight / frame.getRegionHeight();
     }
 
@@ -108,7 +137,7 @@ public class GameScreen implements Screen {
 
         tileWidth = map.getProperties().get("tilewidth", Integer.class);
         tileHeight = map.getProperties().get("tileheight", Integer.class);
-        tileSize = Math.max(tileWidth, tileHeight); // Используем максимальный размер для масштабирования
+        tileSize = Math.max(tileWidth, tileHeight);
 
         MapLayer collisionLayer = map.getLayers().get("Collision_1");
         if (collisionLayer == null) {
@@ -122,10 +151,23 @@ public class GameScreen implements Screen {
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject) {
                 TiledMapTileMapObject tileObject = (TiledMapTileMapObject) object;
-                System.out.println("Collision object: x=" + tileObject.getX() + ", y=" + tileObject.getY() +
-                    ", width=" + tileWidth + ", height=" + tileHeight);
+                TiledMapTile tile = tileObject.getTile();
+                Rectangle collisionRect = getTileCollisionRectangle(tile, tileObject.getX(), tileObject.getY());
+                System.out.println("Collision object: x=" + collisionRect.x + ", y=" + collisionRect.y +
+                    ", width=" + collisionRect.width + ", height=" + collisionRect.height);
             }
         }
+    }
+
+    private Rectangle getTileCollisionRectangle(TiledMapTile tile, float x, float y) {
+        MapObjects objects = tile.getObjects();
+        for (MapObject object : objects) {
+            if (object instanceof RectangleMapObject) {
+                Rectangle rect = ((RectangleMapObject) object).getRectangle();
+                return new Rectangle(x + rect.x, y + rect.y, rect.width, rect.height);
+            }
+        }
+        return new Rectangle(x, y, tileWidth, tileHeight);
     }
 
     @Override
@@ -138,35 +180,55 @@ public class GameScreen implements Screen {
         camera.position.set(position, 0);
         camera.update();
 
+        viewport.apply();
+
         mapRenderer.setView(camera);
-        mapRenderer.render();
+        mapRenderer.render(new int[]{0}); // Рендерим только базовый слой карты
 
         batch.setProjectionMatrix(camera.combined);
 
         handleInput(delta);
         updatePlayerCollisionRect();
 
-        // Отрисовка объектов коллизии
-        batch.begin();
+        // Создаем список объектов для отрисовки
+        ArrayList<DrawableObject> drawableObjects = new ArrayList<>();
+
+        // Добавляем объекты коллизии
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject) {
                 TiledMapTileMapObject tileObject = (TiledMapTileMapObject) object;
                 TiledMapTile tile = tileObject.getTile();
                 if (tile != null && tile.getTextureRegion() != null) {
-                    batch.draw(tile.getTextureRegion(), tileObject.getX(), tileObject.getY());
+                    Sprite sprite = new Sprite(tile.getTextureRegion());
+                    sprite.setPosition(tileObject.getX(), tileObject.getY());
+                    drawableObjects.add(new DrawableObject(sprite, tileObject.getY(), false));
                 }
             }
         }
-        batch.end();
 
-        // Отрисовка игрока
-        batch.begin();
+        // Добавляем игрока
         TextureRegion currentFrame = getCurrentFrame();
-        batch.draw(currentFrame,
-            facingRight ? position.x - currentFrame.getRegionWidth() * scale / 2 : position.x + currentFrame.getRegionWidth() * scale / 2,
-            position.y - currentFrame.getRegionHeight() * scale / 3,  // Смещаем спрайт вниз
-            facingRight ? currentFrame.getRegionWidth() * scale : -currentFrame.getRegionWidth() * scale,
-            currentFrame.getRegionHeight() * scale);
+        Sprite playerSprite = new Sprite(currentFrame);
+        float spriteWidth = currentFrame.getRegionWidth() * scale;
+        float spriteHeight = currentFrame.getRegionHeight() * scale;
+
+        playerSprite.setSize(spriteWidth, spriteHeight);
+        playerSprite.setOrigin(spriteWidth / 2, spriteHeight / 3); // Устанавливаем точку вращения
+        playerSprite.setPosition(
+            position.x - spriteWidth / 2,
+            position.y - spriteHeight / 3
+        );
+        drawableObjects.add(new DrawableObject(playerSprite, position.y, !facingRight));
+
+        // Сортируем объекты по Y-координате (сверху вниз)
+        Collections.sort(drawableObjects);
+
+        // Отрисовываем отсортированные объекты
+        batch.begin();
+        for (DrawableObject obj : drawableObjects) {
+            obj.sprite.setFlip(obj.flipX, false);
+            obj.sprite.draw(batch);
+        }
         batch.end();
 
         switch (currentState) {
@@ -183,19 +245,21 @@ public class GameScreen implements Screen {
                 idleAnimation.getKeyFrame(stateTime, true);
         }
 
-        // Отладочное рисование объектов коллизии и игрока
+        /* Отладочное рисование объектов коллизии и игрока
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         shapeRenderer.setColor(1, 0, 0, 1); // Красный цвет для объектов
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject) {
                 TiledMapTileMapObject tileObject = (TiledMapTileMapObject) object;
-                shapeRenderer.rect(tileObject.getX(), tileObject.getY(), tileWidth, tileHeight);
+                TiledMapTile tile = tileObject.getTile();
+                Rectangle collisionRect = getTileCollisionRectangle(tile, tileObject.getX(), tileObject.getY());
+                shapeRenderer.rect(collisionRect.x, collisionRect.y, collisionRect.width, collisionRect.height);
             }
         }
         shapeRenderer.setColor(0, 1, 0, 1); // Зеленый цвет для игрока
         shapeRenderer.rect(playerCollisionRect.x, playerCollisionRect.y, playerCollisionRect.width, playerCollisionRect.height);
-        shapeRenderer.end();
+        shapeRenderer.end(); */
     }
 
     private TextureRegion getCurrentFrame() {
@@ -288,7 +352,8 @@ public class GameScreen implements Screen {
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject) {
                 TiledMapTileMapObject tileObject = (TiledMapTileMapObject) object;
-                Rectangle tileRect = new Rectangle(tileObject.getX(), tileObject.getY(), tileWidth, tileHeight);
+                TiledMapTile tile = tileObject.getTile();
+                Rectangle tileRect = getTileCollisionRectangle(tile, tileObject.getX(), tileObject.getY());
                 if (Intersector.overlaps(tileRect, playerCollisionRect)) {
                     return true;
                 }
@@ -299,8 +364,10 @@ public class GameScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        camera.setToOrtho(false, width, height);
+        viewport.update(width, height, true);
+        camera.position.set(camera.viewportWidth / 2, camera.viewportHeight / 2, 0);
     }
+
 
     @Override
     public void show() {}
