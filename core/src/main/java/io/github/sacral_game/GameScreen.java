@@ -16,9 +16,8 @@ import com.badlogic.gdx.maps.tiled.TiledMapTile;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.objects.TiledMapTileMapObject;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
-import com.badlogic.gdx.math.Intersector;
-import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
@@ -27,16 +26,15 @@ import java.util.Collections;
 
 public class GameScreen implements Screen {
     private OrthographicCamera camera;
+    private final Vector2 cameraTarget = new Vector2();
     private Viewport viewport;
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
     private Player player;
 
-    // Карта
     private TiledMap map;
     private OrthogonalTiledMapRenderer mapRenderer;
     private MapObjects collisionObjects;
-    private float tileSize;
     private int tileWidth;
     private int tileHeight;
 
@@ -66,7 +64,6 @@ public class GameScreen implements Screen {
 
         tileWidth = map.getProperties().get("tilewidth", Integer.class);
         tileHeight = map.getProperties().get("tileheight", Integer.class);
-        tileSize = Math.max(tileWidth, tileHeight);
 
         MapLayer collisionLayer = map.getLayers().get("Collision_1");
         if (collisionLayer != null) {
@@ -95,7 +92,11 @@ public class GameScreen implements Screen {
     }
 
     private void updateCamera() {
-        camera.position.set(player.getPosition(), 0);
+        float lerpSpeed = 0.1f;
+        cameraTarget.set(player.getPosition());
+        camera.position.x = camera.position.x + (cameraTarget.x - camera.position.x) * lerpSpeed;
+        camera.position.y = camera.position.y + (cameraTarget.y - camera.position.y + 25) * lerpSpeed;
+
         camera.update();
     }
 
@@ -103,14 +104,9 @@ public class GameScreen implements Screen {
         clearScreen();
         viewport.apply();
 
-        // Рендеринг карты
         mapRenderer.setView(camera);
         mapRenderer.render(new int[]{0});
-
-        // Подготовка объектов для отрисовки
         prepareDrawableObjects();
-
-        // Отрисовка всех объектов
         drawObjects();
 
         if (DEBUG_MODE) {
@@ -128,13 +124,12 @@ public class GameScreen implements Screen {
 
         // Добавление объектов карты
         for (MapObject object : collisionObjects) {
-            if (object instanceof TiledMapTileMapObject) {
-                TiledMapTileMapObject tileObject = (TiledMapTileMapObject) object;
+            if (object instanceof TiledMapTileMapObject tileObject) {
                 TiledMapTile tile = tileObject.getTile();
                 if (tile != null && tile.getTextureRegion() != null) {
                     Sprite sprite = new Sprite(tile.getTextureRegion());
                     sprite.setPosition(tileObject.getX(), tileObject.getY());
-                    drawableObjects.add(new DrawableObject(sprite, tileObject.getY(), false));
+                    drawableObjects.add(new DrawableObject(sprite, tileObject.getY()));
                 }
             }
         }
@@ -143,8 +138,7 @@ public class GameScreen implements Screen {
         Sprite playerSprite = player.getSprite();
         drawableObjects.add(new DrawableObject(
             playerSprite,
-            player.getPosition().y,
-            !player.isFacingRight()
+            player.getPosition().y
         ));
 
         // Сортировка объектов по Y-координате
@@ -218,15 +212,14 @@ public class GameScreen implements Screen {
         float y;
         boolean flipX;
 
-        DrawableObject(Sprite sprite, float y, boolean flipX) {
+        DrawableObject(Sprite sprite, float y) {
             this.sprite = sprite;
             this.y = y;
-            this.flipX = flipX;
         }
 
         @Override
         public int compareTo(DrawableObject other) {
-            return Float.compare(other.y, this.y);
+            return Float.compare(other.y, this.y + 10);
         }
     }
 
