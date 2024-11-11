@@ -23,6 +23,11 @@ public class Player {
     private float tileHeight;
     private float speed;
     private float scale = 1.6f;
+    private int maxHealth = 100;
+    private int currentHealth;
+    private boolean isInvulnerable = false;
+    private float invulnerabilityTimer = 0;
+    private final float INVULNERABILITY_DURATION = 1.0f;
 
     private Texture idleTextureUp, idleTextureDown, idleTextureLeft, idleTextureRight;
     private Texture walkTextureUp, walkTextureDown, walkTextureLeft, walkTextureRight;
@@ -44,6 +49,7 @@ public class Player {
         this.currentState = "IDLE";
         this.tileSize = tileSize;
         this.tileHeight = tileSize;
+        this.currentHealth = maxHealth;
 
         collisionRect = new Rectangle();
         loadAnimations();
@@ -98,6 +104,14 @@ public class Player {
         stateTime += delta;
         lastPosition.set(position);
 
+        if (isInvulnerable) {
+            invulnerabilityTimer += delta;
+            if (invulnerabilityTimer >= INVULNERABILITY_DURATION) {
+                isInvulnerable = false;
+                invulnerabilityTimer = 0;
+            }
+        }
+
         handleInput(delta);
         updateCollisionRect();
 
@@ -130,7 +144,8 @@ public class Player {
             isMoving = true;
             currentDirection = "DOWN";
         }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+        // Проверяем, что текущее состояние не "ATTACK" перед началом новой атаки
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !currentState.equals("ATTACK")) {
             currentState = "ATTACK";
             stateTime = 0;
         }
@@ -238,12 +253,44 @@ public class Player {
         return sprite;
     }
 
+
     public Vector2 getPosition() {
         return position;
     }
 
     public Rectangle getCollisionRect() {
         return collisionRect;
+    }
+
+    public void takeDamage(int damage) {
+        if (!isInvulnerable) {
+            currentHealth -= damage;
+            if (currentHealth < 0) currentHealth = 0;
+            isInvulnerable = true;
+            invulnerabilityTimer = 0;
+        }
+    }
+
+
+    public void heal(int amount) {
+        currentHealth += amount;
+        if (currentHealth > maxHealth) currentHealth = maxHealth;
+    }
+
+    public boolean isAlive() {
+        return currentHealth > 0;
+    }
+
+    public int getCurrentHealth() {
+        return currentHealth;
+    }
+
+    public float getHealthPercent() {
+        return (float) currentHealth / maxHealth;
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
     }
 
     public void dispose() {

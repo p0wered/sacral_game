@@ -20,6 +20,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.badlogic.gdx.graphics.Color;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +32,7 @@ public class GameScreen implements Screen {
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
     private Player player;
+    private Enemy enemy;
 
     private TiledMap map;
     private OrthogonalTiledMapRenderer mapRenderer;
@@ -48,6 +50,7 @@ public class GameScreen implements Screen {
         initializeBaseComponents();
         loadMap();
         createPlayer();
+        createEnemy();
         drawableObjects = new ArrayList<>();
     }
 
@@ -80,14 +83,35 @@ public class GameScreen implements Screen {
         player = new Player(startX, startY, 170f, tileSize);
     }
 
-    @Override
-    public void render(float delta) {
-        update(delta);
-        draw(delta);
+    private void createEnemy() {
+        // Создаем врага на некотором расстоянии от игрока
+        enemy = new Enemy(
+            player.getPosition().x + 100,
+            player.getPosition().y + 100
+        );
+    }
+
+    private void drawHUD() {
+        shapeRenderer.setProjectionMatrix(viewport.getCamera().combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
+        float barWidth = 100;
+        float barHeight = 10;
+        float barX = camera.position.x - viewport.getWorldWidth() / 2 + 10; // отступ слева
+        float barY = camera.position.y + viewport.getWorldHeight() / 2 - 20; // отступ сверху
+
+        shapeRenderer.setColor(Color.RED);
+        shapeRenderer.rect(barX, barY, barWidth, barHeight);
+
+        shapeRenderer.setColor(Color.GREEN);
+        shapeRenderer.rect(barX, barY, barWidth * player.getHealthPercent(), barHeight);
+
+        shapeRenderer.end();
     }
 
     private void update(float delta) {
         player.update(delta, map, collisionObjects);
+        enemy.update(delta, player, collisionObjects);
         updateCamera();
     }
 
@@ -108,6 +132,12 @@ public class GameScreen implements Screen {
         mapRenderer.render(new int[]{0});
         prepareDrawableObjects();
         drawObjects();
+
+        // Отрисовка врага
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        enemy.draw(shapeRenderer);
+        shapeRenderer.end();
 
         if (DEBUG_MODE) {
             drawDebug();
@@ -190,6 +220,13 @@ public class GameScreen implements Screen {
             }
         }
         return new Rectangle(x, y, tileWidth, tileHeight);
+    }
+
+    @Override
+    public void render(float delta) {
+        update(delta);
+        draw(delta);
+        drawHUD();
     }
 
     @Override
