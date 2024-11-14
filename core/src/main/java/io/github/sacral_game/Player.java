@@ -28,14 +28,18 @@ public class Player {
     private boolean isInvulnerable = false;
     private float invulnerabilityTimer = 0;
     private final float INVULNERABILITY_DURATION = 1.0f;
+    private boolean isDeathAnimationFinished = false;
+    private boolean isDead = false;
 
     private Texture idleTextureUp, idleTextureDown, idleTextureLeft, idleTextureRight;
     private Texture walkTextureUp, walkTextureDown, walkTextureLeft, walkTextureRight;
     private Texture attackTextureUp, attackTextureDown, attackTextureLeft, attackTextureRight;
+    private Texture deathTexture;
 
     private Animation<TextureRegion> idleAnimationUp, idleAnimationDown, idleAnimationLeft, idleAnimationRight;
     private Animation<TextureRegion> walkAnimationUp, walkAnimationDown, walkAnimationLeft, walkAnimationRight;
     private Animation<TextureRegion> attackAnimationUp, attackAnimationDown, attackAnimationLeft, attackAnimationRight;
+    private Animation<TextureRegion> deathAnimation;
 
     private float stateTime;
     private String currentState;
@@ -65,7 +69,7 @@ public class Player {
         for (int i = 0; i < frameCount; i++) {
             frames[i] = tmp[0][i];
         }
-        return new Animation<>(0.1f, frames);
+        return new Animation<>(0.2f, frames);
     }
 
     private void loadAnimations() {
@@ -84,6 +88,8 @@ public class Player {
         attackTextureLeft = new Texture("../assets/side_animations/spr_player_left_attack.png");
         attackTextureRight = new Texture("../assets/side_animations/spr_player_right_attack.png");
 
+        deathTexture = new Texture("../assets/special_animations/spr_player_death.png");
+
         idleAnimationUp = createAnimation(idleTextureUp, 12);
         idleAnimationDown = createAnimation(idleTextureDown, 12);
         idleAnimationLeft = createAnimation(idleTextureLeft, 12);
@@ -98,9 +104,22 @@ public class Player {
         attackAnimationDown = createAnimation(attackTextureDown, 7);
         attackAnimationLeft = createAnimation(attackTextureLeft, 7);
         attackAnimationRight = createAnimation(attackTextureRight, 7);
+
+        deathAnimation = createAnimation(deathTexture, 8);
     }
 
     public void update(float delta, TiledMap map, MapObjects collisionObjects) {
+        if (isDead) {
+            if (!isDeathAnimationFinished) {
+                stateTime += delta;
+                if (deathAnimation.isAnimationFinished(stateTime)) {
+                    isDeathAnimationFinished = true;
+                    // TODO Возрождение игрока
+                }
+            }
+            return;
+        }
+
         stateTime += delta;
         lastPosition.set(position);
 
@@ -122,6 +141,10 @@ public class Player {
     }
 
     private void handleInput(float delta) {
+        if (isDead) {
+            return;
+        }
+
         boolean isMoving = false;
 
         if (Gdx.input.isKeyPressed(Input.Keys.A)) {
@@ -190,6 +213,10 @@ public class Player {
     }
 
     private TextureRegion getCurrentFrame() {
+        if (isDead) {
+            return deathAnimation.getKeyFrame(stateTime, false);
+        }
+
         switch (currentState) {
             case "WALK":
                 return getWalkAnimation().getKeyFrame(stateTime, true);
@@ -263,14 +290,22 @@ public class Player {
     }
 
     public void takeDamage(int damage) {
-        if (!isInvulnerable) {
+        if (!isInvulnerable && !isDead) {
             currentHealth -= damage;
-            if (currentHealth < 0) currentHealth = 0;
+            if (currentHealth <= 0) {
+                currentHealth = 0;
+                die();
+            }
             isInvulnerable = true;
             invulnerabilityTimer = 0;
         }
     }
 
+    private void die() {
+        isDead = true;
+        stateTime = 0;
+        currentHealth = 0;
+    }
 
     public void heal(int amount) {
         currentHealth += amount;
@@ -293,6 +328,14 @@ public class Player {
         return maxHealth;
     }
 
+    public boolean isDead() {
+        return isDead;
+    }
+
+    public boolean isDeathAnimationFinished() {
+        return isDeathAnimationFinished;
+    }
+
     public void dispose() {
         idleTextureUp.dispose();
         idleTextureDown.dispose();
@@ -308,6 +351,8 @@ public class Player {
         attackTextureDown.dispose();
         attackTextureLeft.dispose();
         attackTextureRight.dispose();
+
+        deathTexture.dispose();
     }
 }
 

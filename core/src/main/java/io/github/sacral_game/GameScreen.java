@@ -33,6 +33,7 @@ public class GameScreen implements Screen {
     private ShapeRenderer shapeRenderer;
     private Player player;
     private Enemy enemy;
+    private boolean isGameOver = false;
 
     private TiledMap map;
     private OrthogonalTiledMapRenderer mapRenderer;
@@ -80,7 +81,7 @@ public class GameScreen implements Screen {
         float tileSize = 32;
         float startX = VIEWPORT_WIDTH / 2;
         float startY = 100;
-        player = new Player(startX, startY, 170f, tileSize);
+        player = new Player(startX, startY, 100f, tileSize);
     }
 
     private void createEnemy() {
@@ -224,9 +225,25 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
+        if (isGameOver) {
+            showGameOverScreen();
+            return;
+        }
+
+        player.update(delta, map, collisionObjects);
+
+        if (player.isDead() && player.isDeathAnimationFinished()) {
+            isGameOver = true;
+        }
+
         update(delta);
         draw(delta);
         drawHUD();
+    }
+
+    private void showGameOverScreen() {
+        // Отрисовка экрана Game Over
+        // Например, показать надпись "Game Over" и кнопку "Restart"
     }
 
     @Override
