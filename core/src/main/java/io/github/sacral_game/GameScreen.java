@@ -132,13 +132,16 @@ public class GameScreen implements Screen {
         mapRenderer.setView(camera);
         mapRenderer.render(new int[]{0});
         prepareDrawableObjects();
-        drawObjects();
 
-        // Отрисовка врага
-        shapeRenderer.setProjectionMatrix(camera.combined);
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        enemy.draw(shapeRenderer);
-        shapeRenderer.end();
+        // Отрисовка всех объектов, включая врага
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        for (DrawableObject obj : drawableObjects) {
+            obj.sprite.setFlip(obj.flipX, false);
+            obj.sprite.draw(batch);
+        }
+        enemy.draw(batch); // Отрисовка врага через SpriteBatch
+        batch.end();
 
         if (DEBUG_MODE) {
             drawDebug();
@@ -206,6 +209,12 @@ public class GameScreen implements Screen {
         Rectangle playerRect = player.getCollisionRect();
         shapeRenderer.rect(playerRect.x, playerRect.y,
             playerRect.width, playerRect.height);
+
+        // Отрисовка коллизии врага
+        shapeRenderer.setColor(1, 1, 0, 1);
+        Rectangle enemyRect = enemy.getCollisionRect();
+        shapeRenderer.rect(enemyRect.x, enemyRect.y,
+            enemyRect.width, enemyRect.height);
 
         shapeRenderer.end();
     }
