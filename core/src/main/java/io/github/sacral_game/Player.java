@@ -16,6 +16,8 @@ import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 
+import java.util.ArrayList;
+
 public class Player {
     private Vector2 position;
     private Rectangle collisionRect;
@@ -31,6 +33,11 @@ public class Player {
     private boolean isDeathAnimationFinished = false;
     private boolean isDead = false;
 
+    private float attackRange = 50f; // Радиус атаки
+    private int attackDamage = 20; // Урон от атаки
+    private float attackCooldown = 0.5f; // Время перезарядки
+    private float attackTimer = 0;
+
     private Texture idleTextureUp, idleTextureDown, idleTextureLeft, idleTextureRight;
     private Texture walkTextureUp, walkTextureDown, walkTextureLeft, walkTextureRight;
     private Texture attackTextureUp, attackTextureDown, attackTextureLeft, attackTextureRight;
@@ -43,8 +50,9 @@ public class Player {
 
     private float stateTime;
     private String currentState;
-    private String currentDirection = "DOWN"; // Направление по умолчанию
+    private String currentDirection = "DOWN";
     private Vector2 lastPosition;
+    private boolean isAttacking;
 
     public Player(float x, float y, float speed, float tileSize) {
         position = new Vector2(x, y);
@@ -69,7 +77,7 @@ public class Player {
         for (int i = 0; i < frameCount; i++) {
             frames[i] = tmp[0][i];
         }
-        return new Animation<>(0.2f, frames);
+        return new Animation<>(0.1f, frames);
     }
 
     private void loadAnimations() {
@@ -130,6 +138,8 @@ public class Player {
                 invulnerabilityTimer = 0;
             }
         }
+
+        attackTimer += delta;
 
         handleInput(delta);
         updateCollisionRect();
@@ -305,6 +315,60 @@ public class Player {
         isDead = true;
         stateTime = 0;
         currentHealth = 0;
+    }
+
+    public void attack(ArrayList<Enemy> enemies) {
+        if (attackTimer < attackCooldown) {
+            return;
+        }
+
+        attackTimer = 0;
+        isAttacking = true;
+
+        Rectangle attackRect = new Rectangle();
+        float attackRange = 40;
+        float attackWidth = 20;
+
+        switch (currentDirection) {
+            case "UP":
+                attackRect.set(
+                    position.x - attackWidth / 2,
+                    position.y - attackRange,
+                    attackWidth,
+                    attackRange
+                );
+                break;
+            case "DOWN": // Назад
+                attackRect.set(
+                    position.x - attackWidth / 2,
+                    position.y + collisionRect.height,
+                    attackWidth,
+                    attackRange
+                );
+                break;
+            case "LEFT": // Влево
+                attackRect.set(
+                    position.x - attackRange,
+                    position.y,
+                    attackRange,
+                    attackWidth
+                );
+                break;
+            case "RIGHT": // Вправо
+                attackRect.set(
+                    position.x + collisionRect.width,
+                    position.y,
+                    attackRange,
+                    attackWidth
+                );
+                break;
+        }
+
+        for (Enemy enemy : enemies) {
+            if (attackRect.overlaps(enemy.getCollisionRect())) {
+                enemy.takeDamage(attackDamage);
+            }
+        }
     }
 
     public void heal(int amount) {

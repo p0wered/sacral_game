@@ -1,6 +1,7 @@
 package io.github.sacral_game;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -16,14 +17,17 @@ import com.badlogic.gdx.maps.tiled.TiledMapTile;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.objects.TiledMapTileMapObject;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.ui.List;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.badlogic.gdx.graphics.Color;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 
 public class GameScreen implements Screen {
     private OrthographicCamera camera;
@@ -32,8 +36,13 @@ public class GameScreen implements Screen {
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
     private Player player;
-    private Enemy enemy;
+    private ArrayList<Enemy> enemies;
     private boolean isGameOver = false;
+
+    private float enemySpawnTimer = 0;
+    private float spawnInterval = 1f;
+    private int wave = 1;
+    private int baseEnemyCount = 2;
 
     private TiledMap map;
     private OrthogonalTiledMapRenderer mapRenderer;
@@ -51,8 +60,76 @@ public class GameScreen implements Screen {
         initializeBaseComponents();
         loadMap();
         createPlayer();
-        createEnemy();
         drawableObjects = new ArrayList<>();
+        enemies = new ArrayList<>();
+
+        spawnEnemyWave();
+    }
+
+    private void spawnEnemyWave() {
+        int enemyCount = baseEnemyCount * wave;
+        for(int i = 0; i < enemyCount; i++) {
+            spawnEnemy();
+        }
+        wave++;
+    }
+
+    private void spawnEnemy() {
+        // Получаем границы экрана в мировых координатах
+        float leftBound = camera.position.x - viewport.getWorldWidth()/2;
+        float rightBound = camera.position.x + viewport.getWorldWidth()/2;
+        float bottomBound = camera.position.y - viewport.getWorldHeight()/2;
+        float topBound = camera.position.y + viewport.getWorldHeight()/2;
+
+        // Расширяем зону спавна за пределы экрана
+        float spawnMargin = 100f;
+
+        float x, y;
+        boolean validPosition;
+        int attempts = 0;
+
+        do {
+            validPosition = true;
+            // Случайно выбираем сторону для спавна (0-сверху, 1-справа, 2-снизу, 3-слева)
+            int side = MathUtils.random(3);
+
+            switch(side) {
+                case 0: // сверху
+                    x = MathUtils.random(leftBound - spawnMargin, rightBound + spawnMargin);
+                    y = topBound + spawnMargin;
+                    break;
+                case 1: // справа
+                    x = rightBound + spawnMargin;
+                    y = MathUtils.random(bottomBound - spawnMargin, topBound + spawnMargin);
+                    break;
+                case 2: // снизу
+                    x = MathUtils.random(leftBound - spawnMargin, rightBound + spawnMargin);
+                    y = bottomBound - spawnMargin;
+                    break;
+                default: // слева
+                    x = leftBound - spawnMargin;
+                    y = MathUtils.random(bottomBound - spawnMargin, topBound + spawnMargin);
+            }
+
+            // Проверяем коллизии с объектами карты
+            Rectangle spawnRect = new Rectangle(x, y, 32, 32); // размер врага
+            for(MapObject object : collisionObjects) {
+                if(object instanceof RectangleMapObject) {
+                    Rectangle rect = ((RectangleMapObject) object).getRectangle();
+                    if(rect.overlaps(spawnRect)) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
+
+            attempts++;
+        } while(!validPosition && attempts < 10);
+
+        if(validPosition) {
+            Enemy enemy = new Enemy(x, y);
+            enemies.add(enemy);
+        }
     }
 
     private void initializeBaseComponents() {
@@ -81,15 +158,7 @@ public class GameScreen implements Screen {
         float tileSize = 32;
         float startX = VIEWPORT_WIDTH / 2;
         float startY = 100;
-        player = new Player(startX, startY, 100f, tileSize);
-    }
-
-    private void createEnemy() {
-        // Создаем врага на некотором расстоянии от игрока
-        enemy = new Enemy(
-            player.getPosition().x + 100,
-            player.getPosition().y + 100
-        );
+        player = new Player(startX, startY, 200f, tileSize);
     }
 
     private void drawHUD() {
@@ -112,7 +181,23 @@ public class GameScreen implements Screen {
 
     private void update(float delta) {
         player.update(delta, map, collisionObjects);
-        enemy.update(delta, player, collisionObjects);
+
+        for (Iterator<Enemy> iterator = enemies.iterator(); iterator.hasNext();) {
+            Enemy enemy = iterator.next();
+            enemy.update(delta, player, collisionObjects, enemies);
+            if (enemy.isDead()) {
+                iterator.remove();
+            }
+        }
+
+        if (enemies.isEmpty()) {
+            enemySpawnTimer += delta;
+            if (enemySpawnTimer >= spawnInterval) {
+                spawnEnemyWave();
+                enemySpawnTimer = 0;
+            }
+        }
+
         updateCamera();
     }
 
@@ -140,7 +225,9 @@ public class GameScreen implements Screen {
             obj.sprite.setFlip(obj.flipX, false);
             obj.sprite.draw(batch);
         }
-        enemy.draw(batch); // Отрисовка врага через SpriteBatch
+        for (Enemy enemy : enemies) {
+            enemy.draw(batch);
+        }
         batch.end();
 
         if (DEBUG_MODE) {
@@ -210,11 +297,13 @@ public class GameScreen implements Screen {
         shapeRenderer.rect(playerRect.x, playerRect.y,
             playerRect.width, playerRect.height);
 
-        // Отрисовка коллизии врага
+        // Отрисовка коллизий всех врагов
         shapeRenderer.setColor(1, 1, 0, 1);
-        Rectangle enemyRect = enemy.getCollisionRect();
-        shapeRenderer.rect(enemyRect.x, enemyRect.y,
-            enemyRect.width, enemyRect.height);
+        for (Enemy enemy : enemies) {
+            Rectangle enemyRect = enemy.getCollisionRect();
+            shapeRenderer.rect(enemyRect.x, enemyRect.y,
+                enemyRect.width, enemyRect.height);
+        }
 
         shapeRenderer.end();
     }
@@ -239,15 +328,14 @@ public class GameScreen implements Screen {
             return;
         }
 
-        player.update(delta, map, collisionObjects);
-
-        if (player.isDead() && player.isDeathAnimationFinished()) {
-            isGameOver = true;
+        // Проверка на атаку игрока
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+            player.attack(enemies);
         }
 
-        update(delta);
-        draw(delta);
-        drawHUD();
+        update(delta); // Обновляем игрока и врагов
+        draw(delta);   // Рендерим карту, игрока и врагов
+        drawHUD();     // Рендерим интерфейс
     }
 
     private void showGameOverScreen() {

@@ -13,21 +13,29 @@ import com.badlogic.gdx.maps.tiled.objects.TiledMapTileMapObject;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 
+import java.util.ArrayList;
+
 public class Enemy {
     private Vector2 position;
     private Vector2 velocity;
-    private float speed = 60f;
+    private float speed = 100f;
     private Rectangle collisionRect;
     private float damage = 10;
     private float damageInterval = 1.0f;
     private float damageTimer = 0;
     private float size = 40f;
+    private int health = 100;
+    private boolean isStunned = false;
+    private float stunDuration = 0.3f;
+    private float stunTimer = 0;
+    private static final float MIN_ENEMY_DISTANCE = 20f;
 
     // Анимационные компоненты
     private Animation<TextureRegion>[] walkAnimations;
     private Animation<TextureRegion>[] idleAnimations;
     private Animation<TextureRegion>[] attackAnimations;
     private Animation<TextureRegion>[] deathAnimations;
+    private Animation<TextureRegion>[] stunAnimations;
     private float stateTime;
     private Direction currentDirection;
     private EnemyState currentState;
@@ -52,7 +60,7 @@ public class Enemy {
     }
 
     private enum EnemyState {
-        IDLE, WALKING, ATTACKING, DYING
+        IDLE, WALKING, ATTACKING, DYING, STUNNED
     }
 
     @SuppressWarnings("unchecked")
@@ -62,11 +70,11 @@ public class Enemy {
         moveDirection = new Vector2();
         collisionRect = new Rectangle(x, y, size, size);
 
-        // Инициализация анимаций
         walkAnimations = new Animation[4];
         idleAnimations = new Animation[4];
         attackAnimations = new Animation[4];
         deathAnimations = new Animation[4];
+        stunAnimations = new Animation[4];
 
         loadAnimations();
 
@@ -81,6 +89,7 @@ public class Enemy {
         loadIdleAnimations();
         loadAttackAnimations();
         loadDeathAnimations();
+        loadStunAnimations();
     }
 
     private void loadWalkAnimations() {
@@ -105,7 +114,7 @@ public class Enemy {
         for (int dir = 0; dir < 4; dir++) {
             TextureRegion[] idleFrames = new TextureRegion[5];
             System.arraycopy(tmp[dir], 0, idleFrames, 0, 5);
-            idleAnimations[dir] = new Animation<>(0.1f, idleFrames); // Используем idleAnimations вместо walkAnimations
+            idleAnimations[dir] = new Animation<>(0.1f, idleFrames);
         }
     }
 
@@ -118,7 +127,7 @@ public class Enemy {
         for (int dir = 0; dir < 4; dir++) {
             TextureRegion[] attackFrames = new TextureRegion[8];
             System.arraycopy(tmp[dir], 0, attackFrames, 0, 8);
-            attackAnimations[dir] = new Animation<>(0.1f, attackFrames); // Используем attackAnimations вместо walkAnimations
+            attackAnimations[dir] = new Animation<>(0.1f, attackFrames);
         }
     }
 
@@ -131,15 +140,38 @@ public class Enemy {
         for (int dir = 0; dir < 4; dir++) {
             TextureRegion[] deathFrames = new TextureRegion[7];
             System.arraycopy(tmp[dir], 0, deathFrames, 0, 7);
-            deathAnimations[dir] = new Animation<>(0.1f, deathFrames); // Используем deathAnimations вместо walkAnimations
+            deathAnimations[dir] = new Animation<>(0.3f, deathFrames);
         }
     }
 
-    public void update(float delta, Player player, MapObjects collisionObjects) {
+    private void loadStunAnimations() {
+        Texture stunSheet = new Texture(Gdx.files.internal("../assets/zombie/Stunned.png"));
+        TextureRegion[][] tmp = TextureRegion.split(stunSheet,
+            stunSheet.getWidth() / 6,
+            stunSheet.getHeight() / 4);
+
+        for (int dir = 0; dir < 4; dir++) {
+            TextureRegion[] stunFrames = new TextureRegion[5];
+            System.arraycopy(tmp[dir], 0, stunFrames, 0, 5);
+            stunAnimations[dir] = new Animation<>(0.1f, stunFrames);
+        }
+    }
+
+    public void update(float delta, Player player, MapObjects collisionObjects, ArrayList<Enemy> enemies) {
         stateTime += delta;
         damageTimer += delta;
         obstacleAvoidanceTimer += delta;
         pathFindingTimer += delta;
+
+        if (isStunned) {
+            stunTimer += delta;
+            if (stunTimer >= stunDuration) {
+                isStunned = false;
+                stunTimer = 0;
+            }
+            currentState = EnemyState.STUNNED;
+            return;
+        }
 
         if (isDead) {
             currentState = EnemyState.DYING;
@@ -148,27 +180,24 @@ public class Enemy {
             }
         }
 
-        // Сохраняем позицию игрока как целевую точку
         targetPosition = player.getPosition();
 
-        // Обновляем путь каждый интервал
         if (pathFindingTimer >= pathFindingInterval) {
-            moveDirection.set(findBestDirection(collisionObjects));
+            moveDirection.set(findBestDirection(collisionObjects, enemies));
             pathFindingTimer = 0;
         }
 
-        // Обновляем направление анимации на основе движения
         updateDirection(moveDirection);
 
-        // Рассчитываем следующую позицию
         float nextX = position.x + moveDirection.x * speed * delta;
         float nextY = position.y + moveDirection.y * speed * delta;
 
         Rectangle nextPositionRect = new Rectangle(
             nextX, nextY, collisionRect.width, collisionRect.height);
 
-        // Проверяем коллизии
-        if (!checkCollisions(nextPositionRect, collisionObjects)) {
+        // Проверяем коллизии со стенами и другими врагами
+        if (!checkCollisions(nextPositionRect, collisionObjects) &&
+            !checkEnemyCollisions(nextPositionRect, enemies)) {
             position.x = nextX;
             position.y = nextY;
             currentState = EnemyState.WALKING;
@@ -176,10 +205,8 @@ public class Enemy {
             currentState = EnemyState.IDLE;
         }
 
-        // Обновляем прямоугольник коллизии
         collisionRect.setPosition(position.x, position.y);
 
-        // Проверяем столкновение с игроком
         if (collisionRect.overlaps(player.getCollisionRect())) {
             currentState = EnemyState.ATTACKING;
             if (damageTimer >= damageInterval) {
@@ -187,6 +214,17 @@ public class Enemy {
                 damageTimer = 0;
             }
         }
+    }
+
+    private boolean checkEnemyCollisions(Rectangle nextPos, ArrayList<Enemy> enemies) {
+        for (Enemy otherEnemy : enemies) {
+            if (otherEnemy == this || otherEnemy.isDead) continue;
+
+            if (nextPos.overlaps(otherEnemy.getCollisionRect())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void updateDirection(Vector2 direction) {
@@ -199,7 +237,7 @@ public class Enemy {
         }
     }
 
-    private Vector2 findBestDirection(MapObjects collisionObjects) {
+    private Vector2 findBestDirection(MapObjects collisionObjects, ArrayList<Enemy> enemies) {
         Vector2 directionToTarget = new Vector2(
             targetPosition.x - position.x,
             targetPosition.y - position.y
@@ -208,7 +246,7 @@ public class Enemy {
         float distanceToTarget = directionToTarget.len();
         directionToTarget.nor();
 
-        if (!isPathBlocked(position, targetPosition, collisionObjects)) {
+        if (!isPathBlocked(position, targetPosition, collisionObjects, enemies)) {
             return directionToTarget;
         }
 
@@ -223,7 +261,7 @@ public class Enemy {
                 position.y + rayDirection.y * RAY_LENGTH
             );
 
-            float score = evaluateDirection(rayDirection, rayEnd, collisionObjects);
+            float score = evaluateDirection(rayDirection, rayEnd, collisionObjects, enemies);
 
             if (score > bestScore) {
                 bestScore = score;
@@ -234,8 +272,8 @@ public class Enemy {
         return bestDirection;
     }
 
-    private float evaluateDirection(Vector2 direction, Vector2 rayEnd, MapObjects collisionObjects) {
-        // Базовая оценка - насколько направление близко к цели
+    private float evaluateDirection(Vector2 direction, Vector2 rayEnd,
+                                    MapObjects collisionObjects, ArrayList<Enemy> enemies) {
         float angleToTarget = direction.angle(new Vector2(
             targetPosition.x - position.x,
             targetPosition.y - position.y
@@ -243,12 +281,20 @@ public class Enemy {
 
         float score = 1000 - angleToTarget;
 
-        // Проверяем, не заблокировано ли направление
-        if (isPathBlocked(position, rayEnd, collisionObjects)) {
+        if (isPathBlocked(position, rayEnd, collisionObjects, enemies)) {
             score -= 500;
         }
 
-        // Дополнительный бонус за направления, которые ведут ближе к цели
+        // Добавляем штраф за близость к другим врагам
+        for (Enemy otherEnemy : enemies) {
+            if (otherEnemy == this || otherEnemy.isDead) continue;
+
+            float distToEnemy = position.dst(otherEnemy.position);
+            if (distToEnemy < MIN_ENEMY_DISTANCE) {
+                score -= (MIN_ENEMY_DISTANCE - distToEnemy) * 10;
+            }
+        }
+
         Vector2 potentialPosition = new Vector2(
             position.x + direction.x * RAY_LENGTH,
             position.y + direction.y * RAY_LENGTH
@@ -264,19 +310,20 @@ public class Enemy {
         return score;
     }
 
-    private boolean isPathBlocked(Vector2 start, Vector2 end, MapObjects collisionObjects) {
+    private boolean isPathBlocked(Vector2 start, Vector2 end,
+                                  MapObjects collisionObjects, ArrayList<Enemy> enemies) {
         Vector2 direction = new Vector2(end).sub(start);
         float distance = direction.len();
         direction.nor();
 
-        // Проверяем путь с помощью нескольких точек
         int numSteps = (int)(distance / (size / 2));
         for (int i = 0; i < numSteps; i++) {
             float stepX = start.x + direction.x * i * (size / 2);
             float stepY = start.y + direction.y * i * (size / 2);
 
             Rectangle testRect = new Rectangle(stepX, stepY, size, size);
-            if (checkCollisions(testRect, collisionObjects)) {
+            if (checkCollisions(testRect, collisionObjects) ||
+                checkEnemyCollisions(testRect, enemies)) {
                 return true;
             }
         }
@@ -318,6 +365,9 @@ public class Enemy {
             case DYING:
                 currentAnimations = deathAnimations;
                 break;
+            case STUNNED:
+                currentAnimations = stunAnimations;
+                break;
             default:
                 currentAnimations = idleAnimations;
         }
@@ -338,6 +388,22 @@ public class Enemy {
 
     public Rectangle getCollisionRect() {
         return collisionRect;
+    }
+
+    public void takeDamage(int damage) {
+        if (isDead) return;
+
+        health -= damage;
+        isStunned = true;
+        stunTimer = 0;
+
+        if (health <= 0) {
+            die();
+        }
+    }
+
+    public boolean isDead() {
+        return isDead;
     }
 
     public void die() {
