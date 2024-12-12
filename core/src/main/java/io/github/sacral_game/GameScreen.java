@@ -4,9 +4,7 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -27,13 +25,11 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.List;
-import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
-import com.badlogic.gdx.graphics.Color;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -93,13 +89,10 @@ public class GameScreen implements Screen {
     }
 
     private void spawnEnemy() {
-        // Получаем границы экрана в мировых координатах
         float leftBound = camera.position.x - viewport.getWorldWidth()/2;
         float rightBound = camera.position.x + viewport.getWorldWidth()/2;
         float bottomBound = camera.position.y - viewport.getWorldHeight()/2;
         float topBound = camera.position.y + viewport.getWorldHeight()/2;
-
-        // Расширяем зону спавна за пределы экрана
         float spawnMargin = 100f;
 
         float x, y;
@@ -108,7 +101,6 @@ public class GameScreen implements Screen {
 
         do {
             validPosition = true;
-            // Случайно выбираем сторону для спавна (0-сверху, 1-справа, 2-снизу, 3-слева)
             int side = MathUtils.random(3);
 
             switch(side) {
@@ -129,7 +121,6 @@ public class GameScreen implements Screen {
                     y = MathUtils.random(bottomBound - spawnMargin, topBound + spawnMargin);
             }
 
-            // Проверяем коллизии с объектами карты
             Rectangle spawnRect = new Rectangle(x, y, 32, 32); // размер врага
             for(MapObject object : collisionObjects) {
                 if(object instanceof RectangleMapObject) {
@@ -185,8 +176,8 @@ public class GameScreen implements Screen {
 
         float barWidth = 100;
         float barHeight = 10;
-        float barX = camera.position.x - viewport.getWorldWidth() / 2 + 10; // отступ слева
-        float barY = camera.position.y + viewport.getWorldHeight() / 2 - 20; // отступ сверху
+        float barX = camera.position.x - viewport.getWorldWidth() / 2 + 10;
+        float barY = camera.position.y + viewport.getWorldHeight() / 2 - 20;
 
         shapeRenderer.setColor(Color.RED);
         shapeRenderer.rect(barX, barY, barWidth, barHeight);
@@ -200,8 +191,7 @@ public class GameScreen implements Screen {
     private void update(float delta) {
         player.update(delta, map, collisionObjects);
 
-        // Проверяем здоровье игрока
-        if (player.isDead()) {  // или можно player.getHealth() <= 0
+        if (player.isDead()) {
             isGameOver = true;
             return;
         }
@@ -243,7 +233,6 @@ public class GameScreen implements Screen {
         mapRenderer.render(new int[]{0});
         prepareDrawableObjects();
 
-        // Отрисовка всех объектов, включая врага
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         for (DrawableObject obj : drawableObjects) {
@@ -268,7 +257,6 @@ public class GameScreen implements Screen {
     private void prepareDrawableObjects() {
         drawableObjects.clear();
 
-        // Добавление объектов карты
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject tileObject) {
                 TiledMapTile tile = tileObject.getTile();
@@ -280,14 +268,12 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Добавление игрока
         Sprite playerSprite = player.getSprite();
         drawableObjects.add(new DrawableObject(
             playerSprite,
             player.getPosition().y
         ));
 
-        // Сортировка объектов по Y-координате
         Collections.sort(drawableObjects);
     }
 
@@ -305,7 +291,6 @@ public class GameScreen implements Screen {
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
-        // Отрисовка коллизий объектов
         shapeRenderer.setColor(1, 0, 0, 1);
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject tileObject) {
@@ -315,19 +300,16 @@ public class GameScreen implements Screen {
             }
         }
 
-        // Отрисовка коллизии игрока
         shapeRenderer.setColor(0, 1, 0, 1);
         Rectangle playerRect = player.getCollisionRect();
         shapeRenderer.rect(playerRect.x, playerRect.y, playerRect.width, playerRect.height);
 
-        // Отрисовка области атаки игрока
         shapeRenderer.setColor(1, 0, 1, 1); // Фиолетовый цвет
         if (player.isAttacking()) { // Проверяем, атакует ли игрок
             Rectangle attackRect = player.getAttackRect();
             shapeRenderer.rect(attackRect.x, attackRect.y, attackRect.width, attackRect.height);
         }
 
-        // Отрисовка коллизий всех врагов
         shapeRenderer.setColor(1, 1, 0, 1);
         for (Enemy enemy : enemies) {
             Rectangle enemyRect = enemy.getCollisionRect();
@@ -357,40 +339,62 @@ public class GameScreen implements Screen {
             return;
         }
 
-        // Проверка на атаку игрока
         if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
             player.attack(enemies);
         }
 
-        update(delta); // Обновляем игрока и врагов
-        draw(delta);   // Рендерим карту, игрока и врагов
-        drawHUD();     // Рендерим интерфейс
+        update(delta);
+        draw(delta);
+        drawHUD();
     }
 
     private void showGameOverScreen() {
-        // Очищаем предыдущие обработчики ввода
+        draw(Gdx.graphics.getDeltaTime());
+
         if (gameOverStage.getActors().size == 0) {
+            Viewport viewport = new FitViewport(1280, 720);
+            gameOverStage.setViewport(viewport);
+            viewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
             Gdx.input.setInputProcessor(gameOverStage);
 
-            // Создаем шрифт с поддержкой кириллицы
+            Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+            pixmap.setColor(0, 0, 0, 0.7f);
+            pixmap.fill();
+            Texture dimTexture = new Texture(pixmap);
+            pixmap.dispose();
+
+            Image dimBackground = new Image(dimTexture);
+            dimBackground.setSize(viewport.getWorldWidth(), viewport.getWorldHeight());
+            dimBackground.setPosition(0, 0);
+
+            gameOverStage.addActor(dimBackground);
+
+            Table table = new Table();
+            table.setFillParent(true);
+
             FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("../assets/font.ttf"));
             FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
             parameter.size = 24;
             parameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS + "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
             font = generator.generateFont(parameter);
+
+            FreeTypeFontGenerator.FreeTypeFontParameter titleParameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
+            titleParameter.size = 48;
+            titleParameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS + "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+            BitmapFont titleFont = generator.generateFont(titleParameter);
+
             generator.dispose();
 
-            // Создаем стиль для кнопок
+            Label.LabelStyle titleStyle = new Label.LabelStyle();
+            titleStyle.font = titleFont;
+
+            Label gameOverLabel = new Label("ВЫ ПОМЕРЛИ!", titleStyle);
+
             TextButton.TextButtonStyle buttonStyle = new TextButton.TextButtonStyle();
             buttonStyle.font = font;
             buttonStyle.up = new TextureRegionDrawable(new TextureRegion(new Texture(Gdx.files.internal("button_bg.png"))));
 
-            // Кнопка "Рестарт"
             TextButton restartButton = new TextButton("Рестарт", buttonStyle);
-            restartButton.setPosition(
-                viewport.getWorldWidth() / 2 - restartButton.getWidth() / 2,
-                viewport.getWorldHeight() / 2
-            );
             restartButton.addListener(new ClickListener() {
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
@@ -398,12 +402,7 @@ public class GameScreen implements Screen {
                 }
             });
 
-            // Кнопка "Главное меню"
-            TextButton menuButton = new TextButton("Главное меню", buttonStyle);
-            menuButton.setPosition(
-                viewport.getWorldWidth() / 2 - menuButton.getWidth() / 2,
-                viewport.getWorldHeight() / 2 - 60
-            );
+            TextButton menuButton = new TextButton("В главное меню", buttonStyle);
             menuButton.addListener(new ClickListener() {
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
@@ -411,21 +410,18 @@ public class GameScreen implements Screen {
                 }
             });
 
-            gameOverStage.addActor(restartButton);
-            gameOverStage.addActor(menuButton);
+            table.add(gameOverLabel).padBottom(50).row();
+            table.add(restartButton).size(200, 50).padBottom(20).row();
+            table.add(menuButton).size(200, 50);
+
+            gameOverStage.addActor(table);
+
+            gameOverStage.getCamera().position.set(
+                gameOverStage.getViewport().getWorldWidth() / 2,
+                gameOverStage.getViewport().getWorldHeight() / 2,
+                0
+            );
         }
-
-        Gdx.gl.glClearColor(0, 0, 0.2f, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-        gameOverStage.getViewport().apply();
-        batch.setProjectionMatrix(gameOverStage.getCamera().combined);
-
-        batch.begin();
-        font.draw(batch, "GAME OVER",
-            viewport.getWorldWidth() / 2 - 50,
-            viewport.getWorldHeight() / 2 + 100);
-        batch.end();
 
         gameOverStage.act(Gdx.graphics.getDeltaTime());
         gameOverStage.draw();
@@ -435,6 +431,7 @@ public class GameScreen implements Screen {
     public void resize(int width, int height) {
         viewport.update(width, height, true);
         camera.position.set(camera.viewportWidth / 2, camera.viewportHeight / 2, 0);
+        gameOverStage.getViewport().update(width, height, true);
     }
 
     @Override

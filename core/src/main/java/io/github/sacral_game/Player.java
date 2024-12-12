@@ -25,7 +25,7 @@ public class Player {
     private float tileHeight;
     private float speed;
     private float scale = 1.6f;
-    private int maxHealth = 100;
+    private int maxHealth = 80;
     private int currentHealth;
     private boolean isInvulnerable = false;
     private float invulnerabilityTimer = 0;
@@ -150,34 +150,70 @@ public class Player {
         }
     }
 
+    private int lastPressedKey = -1;
+
     private void handleInput(float delta) {
         if (isDead) {
             return;
         }
 
         boolean isMoving = false;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.W)) lastPressedKey = Input.Keys.W;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.S)) lastPressedKey = Input.Keys.S;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.A)) lastPressedKey = Input.Keys.A;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.D)) lastPressedKey = Input.Keys.D;
 
-        if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-            position.x -= speed * delta;
-            isMoving = true;
-            currentDirection = "LEFT";
+        if (lastPressedKey != -1 && !Gdx.input.isKeyPressed(lastPressedKey)) {
+            lastPressedKey = -1;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-            position.x += speed * delta;
-            isMoving = true;
-            currentDirection = "RIGHT";
+
+        if (lastPressedKey != -1 && Gdx.input.isKeyPressed(lastPressedKey)) {
+            switch (lastPressedKey) {
+                case Input.Keys.W:
+                    position.y += speed * delta;
+                    isMoving = true;
+                    currentDirection = "UP";
+                    break;
+                case Input.Keys.S:
+                    position.y -= speed * delta;
+                    isMoving = true;
+                    currentDirection = "DOWN";
+                    break;
+                case Input.Keys.A:
+                    position.x -= speed * delta;
+                    isMoving = true;
+                    currentDirection = "LEFT";
+                    break;
+                case Input.Keys.D:
+                    position.x += speed * delta;
+                    isMoving = true;
+                    currentDirection = "RIGHT";
+                    break;
+            }
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.W)) {
+
+        else if (Gdx.input.isKeyPressed(Input.Keys.W)) {
             position.y += speed * delta;
             isMoving = true;
             currentDirection = "UP";
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.S)) {
+        else if (Gdx.input.isKeyPressed(Input.Keys.S)) {
             position.y -= speed * delta;
             isMoving = true;
             currentDirection = "DOWN";
         }
-        // Проверяем, что текущее состояние не "ATTACK" перед началом новой атаки
+        else if (Gdx.input.isKeyPressed(Input.Keys.A)) {
+            position.x -= speed * delta;
+            isMoving = true;
+            currentDirection = "LEFT";
+        }
+        else if (Gdx.input.isKeyPressed(Input.Keys.D)) {
+            position.x += speed * delta;
+            isMoving = true;
+            currentDirection = "RIGHT";
+        }
+
+        // Проверяем атаку
         if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && !currentState.equals("ATTACK")) {
             currentState = "ATTACK";
             stateTime = 0;

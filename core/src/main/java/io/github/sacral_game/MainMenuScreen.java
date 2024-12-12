@@ -12,6 +12,8 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
@@ -20,11 +22,14 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 
 public class MainMenuScreen implements Screen {
     private OrthographicCamera camera;
+    private Texture backgroundTexture;
     private Viewport viewport;
     private SpriteBatch batch;
     private BitmapFont font;
+    private BitmapFont titleFont; // Шрифт для заголовка
     private final Game game;
     private Stage stage;
+    private Table table;
 
     public MainMenuScreen(Game game) {
         this.game = game;
@@ -33,6 +38,7 @@ public class MainMenuScreen implements Screen {
         batch = new SpriteBatch();
         font = new BitmapFont();
         font.getData().setScale(2);
+        backgroundTexture = new Texture("../assets/background.jpg");
 
         createUI();
     }
@@ -41,13 +47,32 @@ public class MainMenuScreen implements Screen {
         stage = new Stage(viewport);
         Gdx.input.setInputProcessor(stage);
 
-        // Создаем шрифт с поддержкой кириллицы
+        table = new Table();
+        table.setFillParent(true);
+
+        // Создаем шрифты
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("../assets/font.ttf"));
+
+        // Параметры для обычного шрифта
         FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
-        parameter.size = 24; // Размер шрифта
+        parameter.size = 48;
         parameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS + "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
         font = generator.generateFont(parameter);
+
+        // Параметры для шрифта заголовка
+        FreeTypeFontGenerator.FreeTypeFontParameter titleParameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
+        titleParameter.size = 64; // Больший размер для заголовка
+        titleParameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS;
+        titleFont = generator.generateFont(titleParameter);
+
         generator.dispose();
+
+        // Создаем стиль для заголовка
+        Label.LabelStyle titleStyle = new Label.LabelStyle();
+        titleStyle.font = titleFont;
+
+        // Создаем заголовок
+        Label titleLabel = new Label("SACRAL", titleStyle);
 
         // Создаем стиль для кнопок
         TextButton.TextButtonStyle buttonStyle = new TextButton.TextButtonStyle();
@@ -56,7 +81,6 @@ public class MainMenuScreen implements Screen {
 
         // Кнопка "Играть"
         TextButton playButton = new TextButton("Играть", buttonStyle);
-        playButton.setPosition(320 - playButton.getWidth()/2, 200);
         playButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -66,7 +90,6 @@ public class MainMenuScreen implements Screen {
 
         // Кнопка "Выход"
         TextButton exitButton = new TextButton("Выход", buttonStyle);
-        exitButton.setPosition(320 - exitButton.getWidth()/2, 60);
         exitButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -74,8 +97,12 @@ public class MainMenuScreen implements Screen {
             }
         });
 
-        stage.addActor(playButton);
-        stage.addActor(exitButton);
+        // Добавляем элементы в таблицу с отступами
+        table.add(titleLabel).padBottom(50).row(); // Добавляем заголовок с отступом снизу
+        table.add(playButton).padBottom(20).row();
+        table.add(exitButton);
+
+        stage.addActor(table);
     }
 
     @Override
@@ -83,20 +110,31 @@ public class MainMenuScreen implements Screen {
         Gdx.gl.glClearColor(0, 0, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        batch.setProjectionMatrix(camera.combined);
+
+        batch.begin();
+        batch.draw(backgroundTexture, 0, 0, viewport.getWorldWidth(), viewport.getWorldHeight());
+        batch.end();
+
         stage.act(delta);
         stage.draw();
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        viewport.update(width, height, true);
+        table.invalidate();
     }
 
     @Override
     public void dispose() {
         batch.dispose();
         font.dispose();
+        titleFont.dispose(); // Не забываем освободить ресурсы titleFont
         stage.dispose();
+        backgroundTexture.dispose();
     }
 
-    @Override public void resize(int width, int height) {
-        viewport.update(width, height, true);
-    }
     @Override public void show() {}
     @Override public void hide() {}
     @Override public void pause() {}
