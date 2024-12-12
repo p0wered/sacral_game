@@ -52,7 +52,7 @@ public class Player {
     private String currentState;
     private String currentDirection = "DOWN";
     private Vector2 lastPosition;
-    private boolean isAttacking;
+    public boolean isAttacking;
 
     public Player(float x, float y, float speed, float tileSize) {
         position = new Vector2(x, y);
@@ -332,31 +332,31 @@ public class Player {
         switch (currentDirection) {
             case "UP":
                 attackRect.set(
-                    position.x - attackWidth / 2,
-                    position.y - attackRange,
+                    position.x - attackWidth / 2 + 14,
+                    position.y + collisionRect.height, // Область атаки выше игрока
                     attackWidth,
                     attackRange
                 );
                 break;
-            case "DOWN": // Назад
+            case "DOWN":
                 attackRect.set(
-                    position.x - attackWidth / 2,
-                    position.y + collisionRect.height,
+                    position.x - attackWidth / 2 + 14,
+                    position.y - attackRange, // Область атаки ниже игрока
                     attackWidth,
                     attackRange
                 );
                 break;
-            case "LEFT": // Влево
+            case "LEFT":
                 attackRect.set(
-                    position.x - attackRange,
+                    position.x - attackRange, // Область атаки слева от игрока
                     position.y,
                     attackRange,
                     attackWidth
                 );
                 break;
-            case "RIGHT": // Вправо
+            case "RIGHT":
                 attackRect.set(
-                    position.x + collisionRect.width,
+                    position.x + collisionRect.width, // Область атаки справа от игрока
                     position.y,
                     attackRange,
                     attackWidth
@@ -369,6 +369,49 @@ public class Player {
                 enemy.takeDamage(attackDamage);
             }
         }
+    }
+
+    public Rectangle getAttackRect() {
+        Rectangle attackRect = new Rectangle();
+        float attackRange = 30;
+        float attackWidth = 20;
+
+        switch (currentDirection) {
+            case "UP":
+                attackRect.set(
+                    position.x - attackWidth / 2 + 14,
+                    position.y + collisionRect.height, // Область атаки выше игрока
+                    attackWidth,
+                    attackRange
+                );
+                break;
+            case "DOWN":
+                attackRect.set(
+                    position.x - attackWidth / 2 + 14,
+                    position.y - attackRange, // Область атаки ниже игрока
+                    attackWidth,
+                    attackRange
+                );
+                break;
+            case "LEFT":
+                attackRect.set(
+                    position.x - attackRange, // Область атаки слева от игрока
+                    position.y,
+                    attackRange,
+                    attackWidth
+                );
+                break;
+            case "RIGHT":
+                attackRect.set(
+                    position.x + collisionRect.width, // Область атаки справа от игрока
+                    position.y,
+                    attackRange,
+                    attackWidth
+                );
+                break;
+        }
+
+        return attackRect;
     }
 
     public void heal(int amount) {
@@ -417,6 +460,10 @@ public class Player {
         attackTextureRight.dispose();
 
         deathTexture.dispose();
+    }
+
+    public boolean isAttacking() {
+        return isAttacking;
     }
 }
 

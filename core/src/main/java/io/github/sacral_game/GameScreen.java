@@ -1,12 +1,17 @@
 package io.github.sacral_game;
 
+import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.maps.MapLayer;
 import com.badlogic.gdx.maps.MapObject;
@@ -20,7 +25,12 @@ import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.List;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.badlogic.gdx.graphics.Color;
@@ -38,6 +48,9 @@ public class GameScreen implements Screen {
     private Player player;
     private ArrayList<Enemy> enemies;
     private boolean isGameOver = false;
+    private Game game;
+    private Stage gameOverStage;
+    private BitmapFont font;
 
     private float enemySpawnTimer = 0;
     private float spawnInterval = 1f;
@@ -56,12 +69,17 @@ public class GameScreen implements Screen {
 
     private ArrayList<DrawableObject> drawableObjects;
 
-    public GameScreen() {
+    public GameScreen(Game game) {
+        this.game = game;
         initializeBaseComponents();
         loadMap();
         createPlayer();
         drawableObjects = new ArrayList<>();
         enemies = new ArrayList<>();
+
+        gameOverStage = new Stage(viewport);
+        font = new BitmapFont();
+        font.getData().setScale(2);
 
         spawnEnemyWave();
     }
@@ -182,10 +200,17 @@ public class GameScreen implements Screen {
     private void update(float delta) {
         player.update(delta, map, collisionObjects);
 
+        // Проверяем здоровье игрока
+        if (player.isDead()) {  // или можно player.getHealth() <= 0
+            isGameOver = true;
+            return;
+        }
+
         for (Iterator<Enemy> iterator = enemies.iterator(); iterator.hasNext();) {
             Enemy enemy = iterator.next();
             enemy.update(delta, player, collisionObjects, enemies);
-            if (enemy.isDead()) {
+
+            if (enemy.isDead() && enemy.isDeathAnimationComplete()) {
                 iterator.remove();
             }
         }
@@ -286,23 +311,27 @@ public class GameScreen implements Screen {
             if (object instanceof TiledMapTileMapObject tileObject) {
                 TiledMapTile tile = tileObject.getTile();
                 Rectangle collisionRect = getTileCollisionRectangle(tile, tileObject.getX(), tileObject.getY());
-                shapeRenderer.rect(collisionRect.x, collisionRect.y,
-                    collisionRect.width, collisionRect.height);
+                shapeRenderer.rect(collisionRect.x, collisionRect.y, collisionRect.width, collisionRect.height);
             }
         }
 
         // Отрисовка коллизии игрока
         shapeRenderer.setColor(0, 1, 0, 1);
         Rectangle playerRect = player.getCollisionRect();
-        shapeRenderer.rect(playerRect.x, playerRect.y,
-            playerRect.width, playerRect.height);
+        shapeRenderer.rect(playerRect.x, playerRect.y, playerRect.width, playerRect.height);
+
+        // Отрисовка области атаки игрока
+        shapeRenderer.setColor(1, 0, 1, 1); // Фиолетовый цвет
+        if (player.isAttacking()) { // Проверяем, атакует ли игрок
+            Rectangle attackRect = player.getAttackRect();
+            shapeRenderer.rect(attackRect.x, attackRect.y, attackRect.width, attackRect.height);
+        }
 
         // Отрисовка коллизий всех врагов
         shapeRenderer.setColor(1, 1, 0, 1);
         for (Enemy enemy : enemies) {
             Rectangle enemyRect = enemy.getCollisionRect();
-            shapeRenderer.rect(enemyRect.x, enemyRect.y,
-                enemyRect.width, enemyRect.height);
+            shapeRenderer.rect(enemyRect.x, enemyRect.y, enemyRect.width, enemyRect.height);
         }
 
         shapeRenderer.end();
@@ -339,8 +368,67 @@ public class GameScreen implements Screen {
     }
 
     private void showGameOverScreen() {
-        // Отрисовка экрана Game Over
-        // Например, показать надпись "Game Over" и кнопку "Restart"
+        // Очищаем предыдущие обработчики ввода
+        if (gameOverStage.getActors().size == 0) {
+            Gdx.input.setInputProcessor(gameOverStage);
+
+            // Создаем шрифт с поддержкой кириллицы
+            FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("../assets/font.ttf"));
+            FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
+            parameter.size = 24;
+            parameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS + "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+            font = generator.generateFont(parameter);
+            generator.dispose();
+
+            // Создаем стиль для кнопок
+            TextButton.TextButtonStyle buttonStyle = new TextButton.TextButtonStyle();
+            buttonStyle.font = font;
+            buttonStyle.up = new TextureRegionDrawable(new TextureRegion(new Texture(Gdx.files.internal("button_bg.png"))));
+
+            // Кнопка "Рестарт"
+            TextButton restartButton = new TextButton("Рестарт", buttonStyle);
+            restartButton.setPosition(
+                viewport.getWorldWidth() / 2 - restartButton.getWidth() / 2,
+                viewport.getWorldHeight() / 2
+            );
+            restartButton.addListener(new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    game.setScreen(new GameScreen(game));
+                }
+            });
+
+            // Кнопка "Главное меню"
+            TextButton menuButton = new TextButton("Главное меню", buttonStyle);
+            menuButton.setPosition(
+                viewport.getWorldWidth() / 2 - menuButton.getWidth() / 2,
+                viewport.getWorldHeight() / 2 - 60
+            );
+            menuButton.addListener(new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    game.setScreen(new MainMenuScreen(game));
+                }
+            });
+
+            gameOverStage.addActor(restartButton);
+            gameOverStage.addActor(menuButton);
+        }
+
+        Gdx.gl.glClearColor(0, 0, 0.2f, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        gameOverStage.getViewport().apply();
+        batch.setProjectionMatrix(gameOverStage.getCamera().combined);
+
+        batch.begin();
+        font.draw(batch, "GAME OVER",
+            viewport.getWorldWidth() / 2 - 50,
+            viewport.getWorldHeight() / 2 + 100);
+        batch.end();
+
+        gameOverStage.act(Gdx.graphics.getDeltaTime());
+        gameOverStage.draw();
     }
 
     @Override
@@ -356,6 +444,8 @@ public class GameScreen implements Screen {
         map.dispose();
         mapRenderer.dispose();
         player.dispose();
+        gameOverStage.dispose();
+        font.dispose();
     }
 
     private static class DrawableObject implements Comparable<DrawableObject> {

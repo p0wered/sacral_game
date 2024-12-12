@@ -175,9 +175,10 @@ public class Enemy {
 
         if (isDead) {
             currentState = EnemyState.DYING;
-            if (deathAnimations[currentDirection.index].isAnimationFinished(stateTime)) {
-                return;
-            }
+            System.out.println("Enemy in DYING state: stateTime=" + stateTime +
+                ", Animation Finished=" +
+                deathAnimations[currentDirection.index].isAnimationFinished(stateTime));
+            return;
         }
 
         targetPosition = player.getPosition();
@@ -332,7 +333,6 @@ public class Enemy {
     }
 
     private boolean checkCollisions(Rectangle nextPos, MapObjects collisionObjects) {
-        // Проверяем коллизии со всеми объектами на карте
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject tileObject) {
                 TiledMapTile tile = tileObject.getTile();
@@ -412,5 +412,10 @@ public class Enemy {
             stateTime = 0;
             currentState = EnemyState.DYING;
         }
+    }
+
+    public boolean isDeathAnimationComplete() {
+        return currentState == EnemyState.DYING &&
+            deathAnimations[currentDirection.index].isAnimationFinished(stateTime);
     }
 }

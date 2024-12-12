@@ -8,6 +8,6 @@ public class App extends Game {
     @Override
     public void create() {
         Gdx.graphics.setWindowedMode(1280, 720);
-        setScreen(new GameScreen());
+        setScreen(new MainMenuScreen(this));
     }
 }
