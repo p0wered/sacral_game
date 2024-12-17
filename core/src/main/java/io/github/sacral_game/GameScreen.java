@@ -48,20 +48,21 @@ public class GameScreen implements Screen {
     private Stage gameOverStage;
     private BitmapFont font;
 
-    private float enemySpawnTimer = 0;
-    private float spawnInterval = 1f;
-    private int wave = 1;
-    private int baseEnemyCount = 2;
-
     private TiledMap map;
     private OrthogonalTiledMapRenderer mapRenderer;
     private MapObjects collisionObjects;
+    private MapObjects noCollisionObjects1;
+    private MapObjects noCollisionObjects2;
     private int tileWidth;
     private int tileHeight;
 
+    private int enemyGenerationCount = 0;
+    private int baseEnemySpawnCount = 2;
+    private float enemySpawnMultiplier = 1.5f;
+
     private static final float VIEWPORT_WIDTH = 640;
     private static final float VIEWPORT_HEIGHT = 360;
-    private static final boolean DEBUG_MODE = true;
+    private static final boolean DEBUG_MODE = false;
 
     private ArrayList<DrawableObject> drawableObjects;
 
@@ -77,23 +78,20 @@ public class GameScreen implements Screen {
         font = new BitmapFont();
         font.getData().setScale(2);
 
-        spawnEnemyWave();
+        updateCameraInstantly();
+        spawnEnemy();
+        spawnEnemy();
+        spawnEnemy();
     }
 
-    private void spawnEnemyWave() {
-        int enemyCount = baseEnemyCount * wave;
-        for(int i = 0; i < enemyCount; i++) {
-            spawnEnemy();
-        }
-        wave++;
-    }
+    private Enemy spawnNewEnemy() {
+        float leftBound = camera.position.x - viewport.getWorldWidth() / 2;
+        float rightBound = camera.position.x + viewport.getWorldWidth() / 2;
+        float bottomBound = camera.position.y - viewport.getWorldHeight() / 2;
+        float topBound = camera.position.y + viewport.getWorldHeight() / 2;
+        float spawnMargin = 40f;
 
-    private void spawnEnemy() {
-        float leftBound = camera.position.x - viewport.getWorldWidth()/2;
-        float rightBound = camera.position.x + viewport.getWorldWidth()/2;
-        float bottomBound = camera.position.y - viewport.getWorldHeight()/2;
-        float topBound = camera.position.y + viewport.getWorldHeight()/2;
-        float spawnMargin = 100f;
+        float collisionCheckSize = 48f;
 
         float x, y;
         boolean validPosition;
@@ -103,42 +101,96 @@ public class GameScreen implements Screen {
             validPosition = true;
             int side = MathUtils.random(3);
 
-            switch(side) {
-                case 0: // сверху
+            y = switch (side) {
+                case 0 -> {
                     x = MathUtils.random(leftBound - spawnMargin, rightBound + spawnMargin);
-                    y = topBound + spawnMargin;
-                    break;
-                case 1: // справа
+                    yield topBound + spawnMargin;
+                }
+                case 1 -> {
                     x = rightBound + spawnMargin;
-                    y = MathUtils.random(bottomBound - spawnMargin, topBound + spawnMargin);
-                    break;
-                case 2: // снизу
+                    yield MathUtils.random(bottomBound - spawnMargin, topBound + spawnMargin);
+                }
+                case 2 -> {
                     x = MathUtils.random(leftBound - spawnMargin, rightBound + spawnMargin);
-                    y = bottomBound - spawnMargin;
-                    break;
-                default: // слева
+                    yield bottomBound - spawnMargin;
+                }
+                default -> {
                     x = leftBound - spawnMargin;
-                    y = MathUtils.random(bottomBound - spawnMargin, topBound + spawnMargin);
-            }
+                    yield MathUtils.random(bottomBound - spawnMargin, topBound + spawnMargin);
+                }
+            };
 
-            Rectangle spawnRect = new Rectangle(x, y, 32, 32); // размер врага
-            for(MapObject object : collisionObjects) {
-                if(object instanceof RectangleMapObject) {
+            Rectangle spawnRect = new Rectangle(
+                x - collisionCheckSize/2,
+                y - collisionCheckSize/2,
+                collisionCheckSize,
+                collisionCheckSize
+            );
+
+            for (MapObject object : collisionObjects) {
+                if (object instanceof RectangleMapObject) {
                     Rectangle rect = ((RectangleMapObject) object).getRectangle();
-                    if(rect.overlaps(spawnRect)) {
+                    Rectangle expandedRect = new Rectangle(
+                        rect.x - 5,
+                        rect.y - 5,
+                        rect.width + 10,
+                        rect.height + 10
+                    );
+                    if (expandedRect.overlaps(spawnRect)) {
                         validPosition = false;
                         break;
                     }
                 }
             }
 
-            attempts++;
-        } while(!validPosition && attempts < 10);
+            if (!validPosition) {
+                attempts++;
+                continue;
+            }
 
-        if(validPosition) {
-            Enemy enemy = new Enemy(x, y);
+            for (Enemy enemy : enemies) {
+                Rectangle enemyRect = new Rectangle(
+                    enemy.getPosition().x - 25f,
+                    enemy.getPosition().y - 25f,
+                    50f,
+                    50f
+                );
+                if (spawnRect.overlaps(enemyRect)) {
+                    validPosition = false;
+                    break;
+                }
+            }
+
+            Rectangle playerRect = new Rectangle(
+                player.getPosition().x - 100f,
+                player.getPosition().y - 100f,
+                200f,
+                200f
+            );
+            if (spawnRect.overlaps(playerRect)) {
+                validPosition = false;
+            }
+
+            attempts++;
+        } while (!validPosition && attempts < 20);
+
+        if (validPosition) {
+            return new Enemy(x, y);
+        } else {
+            System.out.println("Unable to spawn enemy after 20 attempts");
+            return null;
+        }
+    }
+
+    private void spawnEnemy() {
+        Enemy enemy = spawnNewEnemy();
+        if (enemy != null) {
             enemies.add(enemy);
         }
+    }
+
+    private int calculateNewEnemyCount() {
+        return Math.round(baseEnemySpawnCount * (float)Math.pow(enemySpawnMultiplier, enemyGenerationCount));
     }
 
     private void initializeBaseComponents() {
@@ -161,12 +213,23 @@ public class GameScreen implements Screen {
         } else {
             Gdx.app.error("GameScreen", "Collision layer not found");
         }
+
+
+        MapLayer noCollisionLayer1 = map.getLayers().get("No_Collision_1");
+        if (noCollisionLayer1 != null) {
+            noCollisionObjects1 = noCollisionLayer1.getObjects();
+        }
+
+        MapLayer noCollisionLayer2 = map.getLayers().get("No_Collision_2");
+        if (noCollisionLayer2 != null) {
+            noCollisionObjects2 = noCollisionLayer2.getObjects();
+        }
     }
 
     private void createPlayer() {
         float tileSize = 32;
-        float startX = VIEWPORT_WIDTH / 2;
-        float startY = 100;
+        float startX = 1400;
+        float startY = 1400;
         player = new Player(startX, startY, 200f, tileSize);
     }
 
@@ -191,10 +254,12 @@ public class GameScreen implements Screen {
     private void update(float delta) {
         player.update(delta, map, collisionObjects);
 
-        if (player.isDead()) {
+        if (player.isDead() && player.isDeathAnimationFinished()) {
             isGameOver = true;
             return;
         }
+
+        ArrayList<Enemy> newEnemies = new ArrayList<>();
 
         for (Iterator<Enemy> iterator = enemies.iterator(); iterator.hasNext();) {
             Enemy enemy = iterator.next();
@@ -202,26 +267,37 @@ public class GameScreen implements Screen {
 
             if (enemy.isDead() && enemy.isDeathAnimationComplete()) {
                 iterator.remove();
+
+                int newEnemyCount = calculateNewEnemyCount();
+
+                for (int i = 0; i < newEnemyCount; i++) {
+                    Enemy newEnemy = spawnNewEnemy();
+                    if (newEnemy != null) {
+                        newEnemies.add(newEnemy);
+                    }
+                }
+
+                enemyGenerationCount++;
             }
         }
 
-        if (enemies.isEmpty()) {
-            enemySpawnTimer += delta;
-            if (enemySpawnTimer >= spawnInterval) {
-                spawnEnemyWave();
-                enemySpawnTimer = 0;
-            }
-        }
-
+        enemies.addAll(newEnemies);
         updateCamera();
     }
 
     private void updateCamera() {
-        float lerpSpeed = 0.1f;
+        float lerpSpeed = 0.05f;
         cameraTarget.set(player.getPosition());
         camera.position.x = camera.position.x + (cameraTarget.x - camera.position.x) * lerpSpeed;
         camera.position.y = camera.position.y + (cameraTarget.y - camera.position.y + 25) * lerpSpeed;
 
+        camera.update();
+    }
+
+    private void updateCameraInstantly() {
+        cameraTarget.set(player.getPosition());
+        camera.position.x = cameraTarget.x;
+        camera.position.y = cameraTarget.y + 25;
         camera.update();
     }
 
@@ -230,7 +306,7 @@ public class GameScreen implements Screen {
         viewport.apply();
 
         mapRenderer.setView(camera);
-        mapRenderer.render(new int[]{0});
+        mapRenderer.render(new int[]{0}); // Отрисовка слоя фона карты
         prepareDrawableObjects();
 
         batch.setProjectionMatrix(camera.combined);
@@ -238,9 +314,6 @@ public class GameScreen implements Screen {
         for (DrawableObject obj : drawableObjects) {
             obj.sprite.setFlip(obj.flipX, false);
             obj.sprite.draw(batch);
-        }
-        for (Enemy enemy : enemies) {
-            enemy.draw(batch);
         }
         batch.end();
 
@@ -259,11 +332,23 @@ public class GameScreen implements Screen {
 
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject tileObject) {
-                TiledMapTile tile = tileObject.getTile();
-                if (tile != null && tile.getTextureRegion() != null) {
-                    Sprite sprite = new Sprite(tile.getTextureRegion());
-                    sprite.setPosition(tileObject.getX(), tileObject.getY());
-                    drawableObjects.add(new DrawableObject(sprite, tileObject.getY()));
+                addTileObjectToDrawable(tileObject);
+            }
+        }
+
+        if (noCollisionObjects1 != null) {
+            for (MapObject object : noCollisionObjects1) {
+                if (object instanceof TiledMapTileMapObject tileObject) {
+                    addTileObjectToDrawable(tileObject);
+                }
+            }
+        }
+
+        // Добавляем объекты без коллизии со второго слоя
+        if (noCollisionObjects2 != null) {
+            for (MapObject object : noCollisionObjects2) {
+                if (object instanceof TiledMapTileMapObject tileObject) {
+                    addTileObjectToDrawable(tileObject);
                 }
             }
         }
@@ -273,6 +358,19 @@ public class GameScreen implements Screen {
             playerSprite,
             player.getPosition().y
         ));
+
+        for (Enemy enemy : enemies) {
+            TextureRegion currentFrame = enemy.getCurrentFrame();
+            Sprite enemySprite = new Sprite(currentFrame);
+            enemySprite.setPosition(enemy.getPosition().x, enemy.getPosition().y);
+            enemySprite.setSize(40f, 40f);
+
+            DrawableObject enemyDrawable = new DrawableObject(
+                enemySprite,
+                enemy.getPosition().y
+            );
+            drawableObjects.add(enemyDrawable);
+        }
 
         Collections.sort(drawableObjects);
     }
@@ -285,6 +383,15 @@ public class GameScreen implements Screen {
             obj.sprite.draw(batch);
         }
         batch.end();
+    }
+
+    private void addTileObjectToDrawable(TiledMapTileMapObject tileObject) {
+        TiledMapTile tile = tileObject.getTile();
+        if (tile != null && tile.getTextureRegion() != null) {
+            Sprite sprite = new Sprite(tile.getTextureRegion());
+            sprite.setPosition(tileObject.getX(), tileObject.getY());
+            drawableObjects.add(new DrawableObject(sprite, tileObject.getY()));
+        }
     }
 
     private void drawDebug() {
@@ -374,7 +481,7 @@ public class GameScreen implements Screen {
 
             FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("../assets/font.ttf"));
             FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
-            parameter.size = 24;
+            parameter.size = 32;
             parameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS + "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
             font = generator.generateFont(parameter);
 
@@ -411,8 +518,8 @@ public class GameScreen implements Screen {
             });
 
             table.add(gameOverLabel).padBottom(50).row();
-            table.add(restartButton).size(200, 50).padBottom(20).row();
-            table.add(menuButton).size(200, 50);
+            table.add(restartButton).size(390, 140).padBottom(20).row();
+            table.add(menuButton).size(390, 140);
 
             gameOverStage.addActor(table);
 
@@ -457,7 +564,7 @@ public class GameScreen implements Screen {
 
         @Override
         public int compareTo(DrawableObject other) {
-            return Float.compare(other.y, this.y + 10);
+            return Float.compare(other.y, this.y);
         }
     }
 

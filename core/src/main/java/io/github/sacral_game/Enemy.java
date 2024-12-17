@@ -10,6 +10,7 @@ import com.badlogic.gdx.maps.MapObjects;
 import com.badlogic.gdx.maps.objects.RectangleMapObject;
 import com.badlogic.gdx.maps.tiled.TiledMapTile;
 import com.badlogic.gdx.maps.tiled.objects.TiledMapTileMapObject;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 
@@ -18,19 +19,20 @@ import java.util.ArrayList;
 public class Enemy {
     private Vector2 position;
     private Vector2 velocity;
-    private float speed = 100f;
+    private float speed = 130f;
     private Rectangle collisionRect;
     private float damage = 10;
     private float damageInterval = 1.0f;
     private float damageTimer = 0;
-    private float size = 40f;
+    private float size = 30f;
+    private float spriteWidth = 40f;
+    private float spriteHeight = 40f;
     private int health = 100;
     private boolean isStunned = false;
     private float stunDuration = 0.3f;
     private float stunTimer = 0;
-    private static final float MIN_ENEMY_DISTANCE = 20f;
+    private static final float MIN_ENEMY_DISTANCE = 1f;
 
-    // Анимационные компоненты
     private Animation<TextureRegion>[] walkAnimations;
     private Animation<TextureRegion>[] idleAnimations;
     private Animation<TextureRegion>[] attackAnimations;
@@ -41,18 +43,16 @@ public class Enemy {
     private EnemyState currentState;
     private boolean isDead;
 
-    // Для движения и избегания препятствий
     private Vector2 moveDirection;
     private float obstacleAvoidanceTimer = 0;
     private float obstacleAvoidanceInterval = 0.5f;
     private boolean isAvoidingObstacle = false;
     private static final float RAY_LENGTH = 100f;
-    private static final int NUM_RAYS = 8;
+    private static final int NUM_RAYS = 64;
     private Vector2 targetPosition;
     private float pathFindingTimer = 0;
     private float pathFindingInterval = 0.2f;
 
-    // Направления и состояния
     private enum Direction {
         FRONT(0), BACK(1), RIGHT(2), LEFT(3);
         final int index;
@@ -68,7 +68,9 @@ public class Enemy {
         position = new Vector2(x, y);
         velocity = new Vector2();
         moveDirection = new Vector2();
-        collisionRect = new Rectangle(x, y, size, size);
+        float collisionWidth = 25f;
+        float collisionHeight = 16f;
+        collisionRect = new Rectangle(x + 20, y, collisionWidth, collisionHeight);
 
         walkAnimations = new Animation[4];
         idleAnimations = new Animation[4];
@@ -95,8 +97,8 @@ public class Enemy {
     private void loadWalkAnimations() {
         Texture walkSheet = new Texture(Gdx.files.internal("../assets/zombie/Walk.png"));
         TextureRegion[][] tmp = TextureRegion.split(walkSheet,
-            walkSheet.getWidth() / 11, // Предполагаем 8 кадров в строке
-            walkSheet.getHeight() / 4); // 4 направления
+            walkSheet.getWidth() / 11,
+            walkSheet.getHeight() / 4);
 
         for (int dir = 0; dir < 4; dir++) {
             TextureRegion[] walkFrames = new TextureRegion[10];
@@ -175,9 +177,6 @@ public class Enemy {
 
         if (isDead) {
             currentState = EnemyState.DYING;
-            System.out.println("Enemy in DYING state: stateTime=" + stateTime +
-                ", Animation Finished=" +
-                deathAnimations[currentDirection.index].isAnimationFinished(stateTime));
             return;
         }
 
@@ -194,9 +193,8 @@ public class Enemy {
         float nextY = position.y + moveDirection.y * speed * delta;
 
         Rectangle nextPositionRect = new Rectangle(
-            nextX, nextY, collisionRect.width, collisionRect.height);
+            nextX , nextY, collisionRect.width, collisionRect.height);
 
-        // Проверяем коллизии со стенами и другими врагами
         if (!checkCollisions(nextPositionRect, collisionObjects) &&
             !checkEnemyCollisions(nextPositionRect, enemies)) {
             position.x = nextX;
@@ -206,7 +204,7 @@ public class Enemy {
             currentState = EnemyState.IDLE;
         }
 
-        collisionRect.setPosition(position.x, position.y);
+        collisionRect.setPosition(position.x + 10, position.y);
 
         if (collisionRect.overlaps(player.getCollisionRect())) {
             currentState = EnemyState.ATTACKING;
@@ -270,8 +268,13 @@ public class Enemy {
             }
         }
 
+        if (bestScore == Float.NEGATIVE_INFINITY) {
+            bestDirection.set(MathUtils.random(-1f, 1f), MathUtils.random(-1f, 1f)).nor();
+        }
+
         return bestDirection;
     }
+
 
     private float evaluateDirection(Vector2 direction, Vector2 rayEnd,
                                     MapObjects collisionObjects, ArrayList<Enemy> enemies) {
@@ -286,13 +289,20 @@ public class Enemy {
             score -= 500;
         }
 
-        // Добавляем штраф за близость к другим врагам
+        float distanceToTarget = position.dst(targetPosition);
+
+        float dynamicMinEnemyDistance = MIN_ENEMY_DISTANCE;
+        if (distanceToTarget < MIN_ENEMY_DISTANCE * 2) {
+            dynamicMinEnemyDistance = MIN_ENEMY_DISTANCE / 2;
+        }
+
         for (Enemy otherEnemy : enemies) {
             if (otherEnemy == this || otherEnemy.isDead) continue;
 
             float distToEnemy = position.dst(otherEnemy.position);
-            if (distToEnemy < MIN_ENEMY_DISTANCE) {
-                score -= (MIN_ENEMY_DISTANCE - distToEnemy) * 10;
+            if (distToEnemy < dynamicMinEnemyDistance) {
+                float penaltyMultiplier = Math.max(0.2f, distanceToTarget / MIN_ENEMY_DISTANCE);
+                score -= (dynamicMinEnemyDistance - distToEnemy) * 10 * penaltyMultiplier;
             }
         }
 
@@ -301,11 +311,11 @@ public class Enemy {
             position.y + direction.y * RAY_LENGTH
         );
 
-        float currentDistanceToTarget = position.dst(targetPosition);
         float newDistanceToTarget = potentialPosition.dst(targetPosition);
 
-        if (newDistanceToTarget < currentDistanceToTarget) {
-            score += 200;
+        if (newDistanceToTarget < distanceToTarget) {
+            float distanceBonus = Math.min(400, 200 * (distanceToTarget / MIN_ENEMY_DISTANCE));
+            score += distanceBonus;
         }
 
         return score;
@@ -353,7 +363,7 @@ public class Enemy {
         return false;
     }
 
-    private TextureRegion getCurrentFrame() {
+    public TextureRegion getCurrentFrame() {
         Animation<TextureRegion>[] currentAnimations;
         switch (currentState) {
             case WALKING:
@@ -377,9 +387,7 @@ public class Enemy {
 
     public void draw(SpriteBatch batch) {
         TextureRegion currentFrame = getCurrentFrame();
-        batch.draw(currentFrame,
-            position.x, position.y,
-            size, size);
+        batch.draw(currentFrame, position.x, position.y, 80f, 80f);
     }
 
     public Vector2 getPosition() {

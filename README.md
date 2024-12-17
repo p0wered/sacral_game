@@ -21,3 +21,5 @@
 - `clean`: removes `build` folders, which store compiled classes and built archives.
 - `lwjgl3:jar`: builds application's runnable jar, which can be found at `lwjgl3/build/libs`.
 - `lwjgl3:run`: starts the application.
+
+![img.png](img.png)
