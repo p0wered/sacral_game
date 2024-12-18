@@ -27,7 +27,7 @@ public class Enemy {
     private float size = 30f;
     private float spriteWidth = 40f;
     private float spriteHeight = 40f;
-    private int health = 100;
+    private int health = 90;
     private boolean isStunned = false;
     private float stunDuration = 0.3f;
     private float stunTimer = 0;
@@ -227,7 +227,7 @@ public class Enemy {
     }
 
     private void updateDirection(Vector2 direction) {
-        if (direction.len2() > 0.01f) { // Проверяем, что враг действительно движется
+        if (direction.len2() > 0.01f) {
             if (Math.abs(direction.x) > Math.abs(direction.y)) {
                 currentDirection = direction.x > 0 ? Direction.RIGHT : Direction.LEFT;
             } else {

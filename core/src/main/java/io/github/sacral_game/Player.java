@@ -33,9 +33,9 @@ public class Player {
     private boolean isDeathAnimationFinished = false;
     private boolean isDead = false;
 
-    private float attackRange = 50f; // Радиус атаки
-    private int attackDamage = 20; // Урон от атаки
-    private float attackCooldown = 0.5f; // Время перезарядки
+    private float attackRange = 50f;
+    private int attackDamage = 30;
+    private float attackCooldown = 0.5f;
     private float attackTimer = 0;
 
     private Texture idleTextureUp, idleTextureDown, idleTextureLeft, idleTextureRight;
@@ -301,7 +301,7 @@ public class Player {
 
     private void updateCollisionRect() {
         TextureRegion currentFrame = getCurrentFrame();
-        float width = currentFrame.getRegionWidth() * scale * 0.25f;  // Уменьшаем ширину коллизии
+        float width = currentFrame.getRegionWidth() * scale * 0.25f;
         float height = currentFrame.getRegionHeight() * scale * 0.15f;
 
         collisionRect.set(
@@ -369,7 +369,7 @@ public class Player {
             case "UP":
                 attackRect.set(
                     position.x - attackWidth / 2 + 14,
-                    position.y + collisionRect.height, // Область атаки выше игрока
+                    position.y + collisionRect.height,
                     attackWidth,
                     attackRange
                 );
@@ -377,14 +377,14 @@ public class Player {
             case "DOWN":
                 attackRect.set(
                     position.x - attackWidth / 2 + 14,
-                    position.y - attackRange, // Область атаки ниже игрока
+                    position.y - attackRange,
                     attackWidth,
                     attackRange
                 );
                 break;
             case "LEFT":
                 attackRect.set(
-                    position.x - attackRange, // Область атаки слева от игрока
+                    position.x - attackRange,
                     position.y,
                     attackRange,
                     attackWidth
@@ -416,7 +416,7 @@ public class Player {
             case "UP":
                 attackRect.set(
                     position.x - attackWidth / 2 + 14,
-                    position.y + collisionRect.height, // Область атаки выше игрока
+                    position.y + collisionRect.height,
                     attackWidth,
                     attackRange
                 );
@@ -424,7 +424,7 @@ public class Player {
             case "DOWN":
                 attackRect.set(
                     position.x - attackWidth / 2 + 14,
-                    position.y - attackRange, // Область атаки ниже игрока
+                    position.y - attackRange,
                     attackWidth,
                     attackRange
                 );

@@ -58,7 +58,7 @@ public class GameScreen implements Screen {
 
     private int enemyGenerationCount = 0;
     private int baseEnemySpawnCount = 2;
-    private float enemySpawnMultiplier = 1.5f;
+    private float enemySpawnMultiplier = 1.2f;
 
     private static final float VIEWPORT_WIDTH = 640;
     private static final float VIEWPORT_HEIGHT = 360;
