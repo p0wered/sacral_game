@@ -34,7 +34,7 @@ public class Player {
     private boolean isDead = false;
 
     private float attackRange = 50f; // Радиус атаки
-    private int attackDamage = 20; // Урон от атаки
+    private int attackDamage = 30; // Урон от атаки
     private float attackCooldown = 0.5f; // Время перезарядки
     private float attackTimer = 0;
 
@@ -122,7 +122,6 @@ public class Player {
                 stateTime += delta;
                 if (deathAnimation.isAnimationFinished(stateTime)) {
                     isDeathAnimationFinished = true;
-                    // TODO Возрождение игрока
                 }
             }
             return;

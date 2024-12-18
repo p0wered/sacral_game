@@ -47,6 +47,7 @@ public class GameScreen implements Screen {
     private Game game;
     private Stage gameOverStage;
     private BitmapFont font;
+    private int score = 0;
 
     private TiledMap map;
     private OrthogonalTiledMapRenderer mapRenderer;
@@ -58,7 +59,7 @@ public class GameScreen implements Screen {
 
     private int enemyGenerationCount = 0;
     private int baseEnemySpawnCount = 2;
-    private float enemySpawnMultiplier = 1.5f;
+    private float enemySpawnMultiplier = 1.1f;
 
     private static final float VIEWPORT_WIDTH = 640;
     private static final float VIEWPORT_HEIGHT = 360;
@@ -244,11 +245,21 @@ public class GameScreen implements Screen {
 
         shapeRenderer.setColor(Color.RED);
         shapeRenderer.rect(barX, barY, barWidth, barHeight);
-
         shapeRenderer.setColor(Color.GREEN);
         shapeRenderer.rect(barX, barY, barWidth * player.getHealthPercent(), barHeight);
-
         shapeRenderer.end();
+
+        batch.setProjectionMatrix(viewport.getCamera().combined);
+        batch.begin();
+        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("../assets/font.ttf"));
+        FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
+        parameter.size = 18;
+        parameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS + "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+        font = generator.generateFont(parameter);
+        font.getData().setScale(1f);
+        font.draw(batch, "Счёт: " + score, camera.position.x + viewport.getWorldWidth() / 2 - 120, camera.position.y + viewport.getWorldHeight() / 2 - 10);
+        batch.end();
+
     }
 
     private void update(float delta) {
@@ -267,16 +278,14 @@ public class GameScreen implements Screen {
 
             if (enemy.isDead() && enemy.isDeathAnimationComplete()) {
                 iterator.remove();
-
+                score += 100;
                 int newEnemyCount = calculateNewEnemyCount();
-
                 for (int i = 0; i < newEnemyCount; i++) {
                     Enemy newEnemy = spawnNewEnemy();
                     if (newEnemy != null) {
                         newEnemies.add(newEnemy);
                     }
                 }
-
                 enemyGenerationCount++;
             }
         }

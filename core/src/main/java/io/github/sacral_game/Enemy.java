@@ -27,7 +27,7 @@ public class Enemy {
     private float size = 30f;
     private float spriteWidth = 40f;
     private float spriteHeight = 40f;
-    private int health = 100;
+    private int health = 90;
     private boolean isStunned = false;
     private float stunDuration = 0.3f;
     private float stunTimer = 0;
@@ -47,11 +47,17 @@ public class Enemy {
     private float obstacleAvoidanceTimer = 0;
     private float obstacleAvoidanceInterval = 0.5f;
     private boolean isAvoidingObstacle = false;
-    private static final float RAY_LENGTH = 100f;
-    private static final int NUM_RAYS = 64;
+    private static final float RAY_LENGTH = 150f;
+    private static final int NUM_RAYS = 128;
     private Vector2 targetPosition;
     private float pathFindingTimer = 0;
     private float pathFindingInterval = 0.2f;
+
+    private float idleTimer = 0;
+    private float idleThreshold = 0.5f;
+    private boolean isCollisionDisabled = false;
+    private float collisionDisabledTimer = 0;
+    private float collisionDisabledDuration = 1f;
 
     private enum Direction {
         FRONT(0), BACK(1), RIGHT(2), LEFT(3);
@@ -70,7 +76,7 @@ public class Enemy {
         moveDirection = new Vector2();
         float collisionWidth = 25f;
         float collisionHeight = 16f;
-        collisionRect = new Rectangle(x + 20, y, collisionWidth, collisionHeight);
+        collisionRect = new Rectangle(x, y, collisionWidth, collisionHeight);
 
         walkAnimations = new Animation[4];
         idleAnimations = new Animation[4];
@@ -165,6 +171,14 @@ public class Enemy {
         obstacleAvoidanceTimer += delta;
         pathFindingTimer += delta;
 
+        if (isCollisionDisabled) {
+            collisionDisabledTimer += delta;
+            if (collisionDisabledTimer >= collisionDisabledDuration) {
+                isCollisionDisabled = false;
+                collisionDisabledTimer = 0;
+            }
+        }
+
         if (isStunned) {
             stunTimer += delta;
             if (stunTimer >= stunDuration) {
@@ -181,6 +195,16 @@ public class Enemy {
         }
 
         targetPosition = player.getPosition();
+
+        if (currentState == EnemyState.IDLE && !isAttacking()) {
+            idleTimer += delta;
+            if (idleTimer >= idleThreshold && !isCollisionDisabled) {
+                isCollisionDisabled = true;
+                collisionDisabledTimer = 0;
+            }
+        } else {
+            idleTimer = 0;
+        }
 
         if (pathFindingTimer >= pathFindingInterval) {
             moveDirection.set(findBestDirection(collisionObjects, enemies));
@@ -216,6 +240,10 @@ public class Enemy {
     }
 
     private boolean checkEnemyCollisions(Rectangle nextPos, ArrayList<Enemy> enemies) {
+        if (isCollisionDisabled) {
+            return false;
+        }
+
         for (Enemy otherEnemy : enemies) {
             if (otherEnemy == this || otherEnemy.isDead) continue;
 
@@ -343,6 +371,10 @@ public class Enemy {
     }
 
     private boolean checkCollisions(Rectangle nextPos, MapObjects collisionObjects) {
+        if (isCollisionDisabled) {
+            return false;
+        }
+
         for (MapObject object : collisionObjects) {
             if (object instanceof TiledMapTileMapObject tileObject) {
                 TiledMapTile tile = tileObject.getTile();
@@ -413,6 +445,11 @@ public class Enemy {
     public boolean isDead() {
         return isDead;
     }
+
+    private boolean isAttacking() {
+        return currentState == EnemyState.ATTACKING;
+    }
+
 
     public void die() {
         if (!isDead) {
