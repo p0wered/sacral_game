@@ -50,16 +50,13 @@ public class MainMenuScreen implements Screen {
         table = new Table();
         table.setFillParent(true);
 
-        // Создаем шрифты
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("../assets/font.ttf"));
 
-        // Параметры для обычного шрифта
         FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
         parameter.size = 48;
         parameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS + "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
         font = generator.generateFont(parameter);
 
-        // Параметры для шрифта заголовка
         FreeTypeFontGenerator.FreeTypeFontParameter titleParameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
         titleParameter.size = 64; // Больший размер для заголовка
         titleParameter.characters = FreeTypeFontGenerator.DEFAULT_CHARS;
@@ -67,19 +64,15 @@ public class MainMenuScreen implements Screen {
 
         generator.dispose();
 
-        // Создаем стиль для заголовка
         Label.LabelStyle titleStyle = new Label.LabelStyle();
         titleStyle.font = titleFont;
 
-        // Создаем заголовок
         Label titleLabel = new Label("SACRAL", titleStyle);
 
-        // Создаем стиль для кнопок
         TextButton.TextButtonStyle buttonStyle = new TextButton.TextButtonStyle();
         buttonStyle.font = font;
         buttonStyle.up = new TextureRegionDrawable(new TextureRegion(new Texture("button_bg.png")));
 
-        // Кнопка "Играть"
         TextButton playButton = new TextButton("Играть", buttonStyle);
         playButton.addListener(new ClickListener() {
             @Override
@@ -88,7 +81,6 @@ public class MainMenuScreen implements Screen {
             }
         });
 
-        // Кнопка "Выход"
         TextButton exitButton = new TextButton("Выход", buttonStyle);
         exitButton.addListener(new ClickListener() {
             @Override
@@ -97,8 +89,7 @@ public class MainMenuScreen implements Screen {
             }
         });
 
-        // Добавляем элементы в таблицу с отступами
-        table.add(titleLabel).padBottom(50).row(); // Добавляем заголовок с отступом снизу
+        table.add(titleLabel).padBottom(50).row();
         table.add(playButton).padBottom(20).row();
         table.add(exitButton);
 
@@ -130,7 +121,7 @@ public class MainMenuScreen implements Screen {
     public void dispose() {
         batch.dispose();
         font.dispose();
-        titleFont.dispose(); // Не забываем освободить ресурсы titleFont
+        titleFont.dispose();
         stage.dispose();
         backgroundTexture.dispose();
     }

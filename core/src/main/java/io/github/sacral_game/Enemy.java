@@ -255,7 +255,7 @@ public class Enemy {
     }
 
     private void updateDirection(Vector2 direction) {
-        if (direction.len2() > 0.01f) { // Проверяем, что враг действительно движется
+        if (direction.len2() > 0.01f) {
             if (Math.abs(direction.x) > Math.abs(direction.y)) {
                 currentDirection = direction.x > 0 ? Direction.RIGHT : Direction.LEFT;
             } else {
